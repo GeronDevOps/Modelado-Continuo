@@ -1,0 +1,24 @@
+{
+  "name": "juego-modelado",
+  "version": "1.0.0",
+  "description": "Aislados en la Patagonia: Balance Hídrico — SimJam",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "phaser": "^3.88.2",
+    "@mediapipe/tasks-vision": "^0.10.21"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5",
+    "vitest": "^2.1.8"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "esbuild@0.21.5": true
+  }
+}
