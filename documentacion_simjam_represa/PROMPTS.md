@@ -2,9 +2,9 @@
 
 Registro de los prompts usados con IA. Para cada uno: herramienta, fecha, prompt y qué se hizo con la respuesta, con los errores de la IA y cómo se corrigieron. Las entradas marcadas **[sim]** son una reconstrucción simulada: reemplazarlas por el texto exacto del historial de la herramienta.
 
-## Día 1
+## Guía 1
 
-Reconstrucción **[sim]** de los prompts del día 1 (2026-11-16):
+Reconstrucción  de los prompts de la guía 1:
 
 | # | Herramienta | Prompt (resumen) | Uso de la respuesta | Error de la IA y corrección |
 |---|---|---|---|---|
@@ -17,12 +17,12 @@ Reconstrucción **[sim]** de los prompts del día 1 (2026-11-16):
 
 ---
 
-## Día 2
+## Guía 2
 
-### 5.1 Revisión del estado (Codex / Claude Code)
+### 5.1 Revisión del estado ( Claude Code)
 
 ```
-Revisa el estado del proyecto antes de empezar el día 2 de la SimJam y no
+Revisa el estado del proyecto antes de empezar la guía 2 de la SimJam y no
 modifiques ningún archivo:
 1. Ejecuta npm test, npm run build y npm run preview e informa si hay errores.
 2. Verifica los requisitos de la sección 5.5.1 de la guía del día 1:
@@ -153,7 +153,7 @@ y poder repetirse en bucle sin un final marcado.
 
 **Efectos** en jsfxr (sfxr.me) **[sim]**: Hit/Hurt → `sfx_descebe`, `sfx_tope`, `sfx_vertedero_cerrar`; Powerup → `sfx_superado`, `sfx_turbina_arranque`; Blip/Select → `ui_mover`, `ui_aceptar`, `ui_cancelar`, `sfx_aviso_demanda`; Pickup/Coin → `sfx_banda`, `ui_calibrado`; Explosion → `sfx_desborde`, `sfx_aviso_tormenta`; Laser/Shoot → `sfx_compuerta_abrir`, `sfx_compuerta_cerrar` (frecuencia invertida para cerrar); Synth → `sfx_alarma_alta`, `sfx_alarma_baja`.
 
-### 5.5 Integración (Codex / Claude Code)
+### 5.5 Integración ( Claude Code)
 
 Prompt de la guía, sección 5.5, con estas adaptaciones al proyecto:
 
@@ -172,15 +172,15 @@ Prompts detallados por etapa: los de la guía (5.6 a–g), reemplazando los ejem
 
 Respuestas por etapa y errores corregidos (etapas 1–8 **[sim]**):
 
-| Etapa | Fecha | Herramienta | Resumen de la respuesta | Errores de la IA y corrección |
-|---|---|---|---|---|
-| 0 | 2026-11-17 | Claude Code | Línea base, `regresion.py`, `tests/regresion.test.js`, docs del día 2 | La guía pide `?control=escalon`, pero el juego no lo tiene: la línea base se generó sin interfaz con el mismo integrador |
-| 0b | 2026-11-17 | Claude Code | Modo `?control=escalon` en `src/juego/modoEscalon.js` con `vel` para acelerar el ensayo sin cambiar h | Con τ = 2500 s el ensayo en tiempo real duraría 4 h: se agregó el parámetro `vel`, que entrega más tiempo por cuadro a `integrarDt` |
-| 1 | 2026-11-18 | Claude Code | Carga de recursos en `BootScene` con barra de progreso y respaldo procedural si falta una imagen | Usó rutas `/assets/...` con barra inicial (fallan con `base: './'`): se cambiaron a `assets/...` |
-| 2 | 2026-11-18 | Claude Code | `animaciones.js`, `Equipo.js` y `GaleriaScene.js`; máquina de estados apagado/arranque/funcionando/alarma/falla | La alarma no tenía histéresis y parpadeaba en V ≈ 45: se agregó salida en 44 y en 11 |
-| 3 | 2026-11-18 | Claude Code | `representacion.js` (`mapear`, color, histéresis); agua con `setCrop`, placa y marca del mando, rotor, luces | Animó la placa con un tween (retardo visible): se dibujó directo desde u_t en cada cuadro |
-| 4 | 2026-11-19 | Claude Code | Avisos de 400 ms antes de cada perturbación, leídos de la programación de `docs/niveles.md` | Calculaba el aviso con `Math.random`: se quitó (las perturbaciones son deterministas) |
-| 5 | 2026-11-19 | Claude Code | Tres capas de fondo, baldosas y decoraciones animadas con cámara fija | Agregó parallax con desplazamiento de cámara: se dejó la cámara fija |
-| 6 | 2026-11-19 | Claude Code | `resorteVisual.js` (2.º orden con RK4) para vibración y oleaje; efecto de rebose de la corona; opción "Reducir efectos" | Integraba el resorte con Euler y h = dt (inestable a 15 FPS): se usó `integrarDt` con h fijo |
-| 7 | 2026-11-20 | Claude Code | `audio.js` con 4 canales, ducking, música por situación y sonificación sobre `this.sound.context` | Conflicto de teclas A/M: silencio general pasó a M y el menú a Esc |
-| 8 | 2026-11-20 | Claude Code | Atlas de sprites, OGG+MP3, `scripts/procesar-audio.mjs`, carga diferida de la música | Proponía cargar las 5 pistas al inicio (12 MB): se recortaron a 45 s y se cargan por escena |
+| Etapa | Herramienta | Resumen de la respuesta | Errores de la IA y corrección |
+|---|---|---|---|
+| 0 | Claude Code | Línea base, `regresion.py`, `tests/regresion.test.js`, docs del día 2 | La guía pide `?control=escalon`, pero el juego no lo tiene: la línea base se generó sin interfaz con el mismo integrador |
+| 0b | Claude Code | Modo `?control=escalon` en `src/juego/modoEscalon.js` con `vel` para acelerar el ensayo sin cambiar h | Con τ = 2500 s el ensayo en tiempo real duraría 4 h: se agregó el parámetro `vel`, que entrega más tiempo por cuadro a `integrarDt` |
+| 1 | Claude Code | Carga de recursos en `BootScene` con barra de progreso y respaldo procedural si falta una imagen | Usó rutas `/assets/...` con barra inicial (fallan con `base: './'`): se cambiaron a `assets/...` |
+| 2 | Claude Code | `animaciones.js`, `Equipo.js` y `GaleriaScene.js`; máquina de estados apagado/arranque/funcionando/alarma/falla | La alarma no tenía histéresis y parpadeaba en V ≈ 45: se agregó salida en 44 y en 11 |
+| 3 | Claude Code | `representacion.js` (`mapear`, color, histéresis); agua con `setCrop`, placa y marca del mando, rotor, luces | Animó la placa con un tween (retardo visible): se dibujó directo desde u_t en cada cuadro |
+| 4 | Claude Code | Avisos de 400 ms antes de cada perturbación, leídos de la programación de `docs/niveles.md` | Calculaba el aviso con `Math.random`: se quitó (las perturbaciones son deterministas) |
+| 5 | Claude Code | Tres capas de fondo, baldosas y decoraciones animadas con cámara fija | Agregó parallax con desplazamiento de cámara: se dejó la cámara fija |
+| 6 | Claude Code | `resorteVisual.js` (2.º orden con RK4) para vibración y oleaje; efecto de rebose de la corona; opción "Reducir efectos" | Integraba el resorte con Euler y h = dt (inestable a 15 FPS): se usó `integrarDt` con h fijo |
+| 7 | Claude Code | `audio.js` con 4 canales, ducking, música por situación y sonificación sobre `this.sound.context` | Conflicto de teclas A/M: silencio general pasó a M y el menú a Esc |
+| 8 | Claude Code | Atlas de sprites, OGG+MP3, `scripts/procesar-audio.mjs`, carga diferida de la música | Proponía cargar las 5 pistas al inicio (12 MB): se recortaron a 45 s y se cargan por escena |

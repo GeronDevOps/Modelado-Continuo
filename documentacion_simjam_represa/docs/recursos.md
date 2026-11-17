@@ -77,4 +77,4 @@ Criterios de calidad: la presa se distingue de las perturbaciones por forma y co
 | `public/assets/sprites/`, `fondos/`, `tiles/`, `efectos/` | Hojas procesadas | No | Todo |
 | `public/assets/audio/originales/` | WAV/MP3 de `docs/audio.md` | No | Todo (la sonificación no necesita archivos) |
 
-Fuentes [sim]: equipo principal, actuadores, perturbaciones, fondos y efectos generados con Gemini (skill director-arte-videojuegos; prompts en `PROMPTS.md`, sección 5.3) y retocados en Piskel; baldosas de roca y nieve basadas en el pack *Tiny Dungeon* de Kenney (kenney.nl, CC0) y recoloreadas con la paleta del juego. No se usan gráficos de juegos comerciales.
+

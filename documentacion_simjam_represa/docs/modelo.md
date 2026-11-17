@@ -2,11 +2,6 @@
 
 Simulador N.º 3 (Represa hidroeléctrica) · SimJam de Modelado y Simulación de Sistemas Continuos (167414)
 
-> **Correcciones respecto al borrador anterior** (detectadas en la revisión crítica, sección 9):
-> 1. La constante de tiempo en pantalla es **τ = 500 h × 5 s/h = 2500 s** de juego (no 0,694 s, que mezclaba unidades).
-> 2. El ciclo "B2" del borrador es en realidad de **refuerzo (R1)**: tiene dos enlaces negativos.
-> 3. La relación Q_t → P es (+) y P → Error es (−); en el borrador la polaridad estaba invertida.
-> 4. El rango de P_demanda implementado es 30–120 MW (no 10–120).
 
 ## 1. Variables (tabla entrada-proceso-salida con unidades)
 

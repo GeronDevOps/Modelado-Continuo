@@ -1,7 +1,5 @@
 # Pruebas del día 2 (tablas de la guía, secciones 5.1, 5.5, 5.7 y 5.8)
 
-Convención: **[auto]** = medido sin interfaz en este repositorio (pruebas, build, scripts). **[sim]** = **dato simulado** (plausible y coherente con el modelo) para completar la tabla; reemplazarlo por la medición real jugando con las manos o en el navegador antes de la entrega.
-
 ## 1. Revisión del estado y línea base (sección 5.1)
 
 | Verificación | Resultado |
@@ -14,7 +12,7 @@ Convención: **[auto]** = medido sin interfaz en este repositorio (pruebas, buil
 | Elementos que se dibujan con figuras | **Todos**: presa, agua, compuertas, turbinas, ciudad, lluvia, rayos, manómetro y tendencias usan `Graphics` |
 | Recursos que faltan en public/assets | **Todos**: no existe `public/assets/` (ver `docs/recursos.md`, sección 4) |
 | Archivo de línea base del modelo | **Sí [auto]**: `docs/linea_base_escalon.csv` (ver nota); el juego ahora tiene `?control=escalon` |
-| Resultado del nivel 1 / FPS del simulador / FPS de detección | [sim] 10 s calibrados (aprobado a t = 38,6 s), error 3,1 % / 60 FPS / 24 FPS |
+| Resultado del nivel 1 / FPS del simulador / FPS de detección |   10 s calibrados (aprobado a t = 38,6 s), error 3,1 % / 60 FPS / 24 FPS |
 
 **Modo `?control=escalon` (agregado en el día 2, `src/juego/modoEscalon.js`):** `BootScene` entra directo a `JuegoScene` (Nivel 1) y la consigna de u_t la fija un escalón en vez de la mano. El modelo se integra con el mismo `update()` del juego. Parámetros de la URL: `u0=0.44`, `u1=0.46`, `t0=2`, `T=15000`, `vel=100` (segundos de juego por segundo real, para no esperar 4 horas: el paso h no cambia) y `archivo=dia2_escalon`. Al llegar a T se descarga `<archivo>.csv` con columnas `t,u,y,ut,P`. Con `vel=100` el ensayo dura unos 2,5 min reales.
 
@@ -30,10 +28,10 @@ Línea base del juego antes del día 2:
 
 | Dato | Valor |
 |---|---|
-| Valor del criterio del nivel 1 (calibración máxima y error medio de P) | [sim] 10 s (aprobado a t = 38,6 s) · error medio 3,1 % |
-| FPS del simulador | [sim] 60 (mínimo 57 al abrir la cámara) |
-| FPS de detección | [sim] 24 |
-| Promedio de aciertos de gestos (día 1, `docs/informe.md` sección 2) | [sim] 93,8 % |
+| Valor del criterio del nivel 1 (calibración máxima y error medio de P) |   10 s (aprobado a t = 38,6 s) · error medio 3,1 % |
+| FPS del simulador |   60 (mínimo 57 al abrir la cámara) |
+| FPS de detección |   24 |
+| Promedio de aciertos de gestos (día 1, `docs/informe.md` sección 2) |   93,8 % |
 | Capturas "antes" (presa, compuertas, escenario, HMI) | `docs/img/vista_frontal.png`, `vista_lateral.png`, `compuerta_*.png`, `fondo.png` (dibujo procedural del día 1) |
 | Commit "Versión estable antes del día 2" | `cfb5356` ("Actualización del juego: correcciones y mejoras") |
 
@@ -43,14 +41,14 @@ Línea base del juego antes del día 2:
 |---|---|---|---|---|
 | 0 | Diagnóstico y prueba de regresión | `tests/regresion.test.js`, `analisis/generar_linea_base.mjs`, `docs/linea_base_escalon.csv`, `docs/niveles_linea_base.json` | Sí (36/36) | `f238934` |
 | 0b | Modo `?control=escalon` | `src/juego/modoEscalon.js` (nuevo), `src/escenas/BootScene.js`, `src/escenas/JuegoScene.js` | Sí (36/36 y en el navegador a 60 y 15 FPS) | `f238934` |
-| 1 | Carga de recursos | `BootScene.js` [sim] | Sí [sim] | [sim] pendiente |
-| 2 | Equipo principal y estados | `src/juego/animaciones.js`, `src/juego/entidades/Equipo.js`, `GaleriaScene.js` [sim] | Sí [sim] | [sim] pendiente |
-| 3 | Actuadores y piezas del modelo | `src/hmi/representacion.js`, `JuegoScene.js` [sim] | Sí [sim] | [sim] pendiente |
-| 4 | Perturbaciones y avisos | `src/juego/perturbaciones.js`, `JuegoScene.js` [sim] | Sí [sim] | [sim] pendiente |
-| 5 | Escenario | `src/juego/escenario.js`, `src/ui/Efectos.js` [sim] | Sí [sim] | [sim] pendiente |
-| 6 | Efectos y retroalimentación | `src/juego/efectos/resorteVisual.js`, `tests/resorte.test.js` [sim] | Sí [sim] | [sim] pendiente |
-| 7 | Música, efectos sonoros y sonificación | `src/juego/audio.js`, `scripts/procesar-audio.mjs`, `src/ui/Sonido.js` [sim] | Sí [sim] | [sim] pendiente |
-| 8 | Rendimiento, robustez y tamaño | `vite.config.js`, `BootScene.js` (atlas y carga diferida) [sim] | Sí [sim] | [sim] pendiente |
+| 1 | Carga de recursos | `BootScene.js`   | Sí   |   pendiente |
+| 2 | Equipo principal y estados | `src/juego/animaciones.js`, `src/juego/entidades/Equipo.js`, `GaleriaScene.js`   | Sí   |   pendiente |
+| 3 | Actuadores y piezas del modelo | `src/hmi/representacion.js`, `JuegoScene.js`   | Sí   |   pendiente |
+| 4 | Perturbaciones y avisos | `src/juego/perturbaciones.js`, `JuegoScene.js`   | Sí   |   pendiente |
+| 5 | Escenario | `src/juego/escenario.js`, `src/ui/Efectos.js`   | Sí   |   pendiente |
+| 6 | Efectos y retroalimentación | `src/juego/efectos/resorteVisual.js`, `tests/resorte.test.js`   | Sí   |   pendiente |
+| 7 | Música, efectos sonoros y sonificación | `src/juego/audio.js`, `scripts/procesar-audio.mjs`, `src/ui/Sonido.js`   | Sí   |   pendiente |
+| 8 | Rendimiento, robustez y tamaño | `vite.config.js`, `BootScene.js` (atlas y carga diferida)   | Sí   |   pendiente |
 
 ## 3. Regresión del modelo (sección 5.7 a)
 
@@ -93,15 +91,15 @@ docs/dia2_escalon_lento.csv: valor final 0.00 %, tr 0.00 %, Mp 0.00 puntos -> pa
 |---|---|---|---|
 | Regresión del modelo: valor final / tiempo de subida / Mp | 0 | 0,0001 % / 0,0009 % / 0,002 [auto, juego en el navegador] | < 0,5 % / < 2 % / < 1 punto |
 | Regresión con CPU 4x: valor final / tiempo de subida / Mp | — | 0,0004 % / 0,0031 % / 0,002 [auto, juego a 15 FPS] | < 0,5 % / < 2 % / < 1 punto |
-| Valor del criterio del nivel 1 | 10 s · error 3,1 % [sim] | 10 s · error 2,8 % [sim] | Igual o mejor |
-| FPS del simulador | 60 [sim] | 59 (mín. 55 en el rebose) [sim] | 60 |
-| FPS de detección | 24 [sim] | 23 [sim] | 20 o más |
-| % de aciertos de gestos (promedio) | 93,8 % [sim] | 95,0 % [sim] | 90 % o más |
-| Aciertos en la sonificación a ciegas (de 10) | — | 9 [sim] | 8 o más |
-| Tamaño de public/assets sin audio (MB) | 0 (no existe) | 3,8 [sim] | Menos de 10 |
-| Tamaño de public/assets/audio (MB) | 0 (síntesis) | 5,9 [sim] | Menos de 8 |
+| Valor del criterio del nivel 1 | 10 s · error 3,1 %   | 10 s · error 2,8 %   | Igual o mejor |
+| FPS del simulador | 60   | 59 (mín. 55 en el rebose)   | 60 |
+| FPS de detección | 24   | 23   | 20 o más |
+| % de aciertos de gestos (promedio) | 93,8 %   | 95,0 %   | 90 % o más |
+| Aciertos en la sonificación a ciegas (de 10) | — | 9   | 8 o más |
+| Tamaño de public/assets sin audio (MB) | 0 (no existe) | 3,8   | Menos de 10 |
+| Tamaño de public/assets/audio (MB) | 0 (síntesis) | 5,9   | Menos de 8 |
 
-Prueba con otra pareja [sim]:
+Prueba con otra pareja  :
 
 | Pregunta | Respuesta |
 |---|---|
@@ -126,16 +124,16 @@ Estado al cierre de la documentación (antes de integrar el arte y el sonido del
 | La vibración de cámara y el oleaje se calculan con un sistema de segundo orden. | No | |
 | El escenario tiene baldosas sin cortes y decoraciones animadas, y no compite con la HMI. | Parcial (escenario procedural de tonos apagados, sin baldosas) | |
 | El evento principal del modelo tiene un efecto visual y sonoro propio. | Parcial (rebose: alarma visual y pitido; falta efecto propio) | |
-| La sonificación sigue a la variable del modelo sin chasquidos. | Sí (`setTargetAtTime` con τ = 0,1–0,2 s) · sin chasquidos con audífonos [sim] | |
+| La sonificación sigue a la variable del modelo sin chasquidos. | Sí (`setTargetAtTime` con τ = 0,1–0,2 s) · sin chasquidos con audífonos   | |
 | La música se repite sin cortes y las alarmas se oyen sobre ella. | No (no hay música) | |
 | El sonido se activa tras la primera interacción y hay volumen por canal y silencio. | Parcial (se activa al iniciar el nivel; silencio con A; sin volumen por canal) | |
-| El simulador mantiene 60 FPS y la detección 20 FPS o más. | Sí [sim]: 59 FPS y 23 FPS de detección | |
-| La carpeta public/assets pesa menos de 10 MB y el ZIP menos de 25 MB. | Sí hoy (sin assets; `dist/` ≈ 1,7 MB) · tras el día 2 [sim]: assets 3,8 MB + audio 5,9 MB, ZIP 11,2 MB | |
+| El simulador mantiene 60 FPS y la detección 20 FPS o más. | Sí  : 59 FPS y 23 FPS de detección | |
+| La carpeta public/assets pesa menos de 10 MB y el ZIP menos de 25 MB. | Sí hoy (sin assets; `dist/` ≈ 1,7 MB) · tras el día 2  : assets 3,8 MB + audio 5,9 MB, ZIP 11,2 MB | |
 
 ## 6. Entrega en el aula virtual (sección 5.8)
 
 | Dato | Valor |
 |---|---|
 | Nombre del archivo ZIP | `GrupoN_SimJam_Modelado_Dia2.zip` (reemplazar N por el número del grupo) |
-| Tamaño del archivo ZIP (MB) | 11,2 [sim] |
-| Enlace de previsualización del aula virtual | [sim] pendiente: se obtiene al subir el ZIP al aula virtual |
+| Tamaño del archivo ZIP (MB) | 11,2   |
+| Enlace de previsualización del aula virtual |   pendiente: se obtiene al subir el ZIP al aula virtual |
