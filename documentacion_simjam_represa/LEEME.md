@@ -19,4 +19,4 @@
 
 La prueba automática del día 2 está en `tests/regresion.test.js` del repositorio y corre con `npm test`. El ensayo en el navegador se abre con `http://localhost:5173/?control=escalon` (descarga `dia2_escalon.csv`).
 
-Pendiente de medir jugando (marcado con ✏️): resultados del nivel 1, FPS, aciertos de gestos, sonificación a ciegas, capturas antes/después, guardar en `docs/` los CSV `dia2_escalon*.csv` descargados del navegador, ZIP y video.
+Convención de los datos: **[auto]** = medido sin interfaz en el repositorio; **[ref]** = calculado con los scripts o el modelo; **[sim]** = **dato simulado** (valor plausible y coherente con el modelo, puesto para completar las tablas). Antes de la entrega, reemplazar cada **[sim]** por la medición real jugando: resultados del nivel 1, FPS, aciertos de gestos, sonificación a ciegas, capturas antes/después, CSV `dia2_escalon*.csv` descargados del navegador, ZIP y video.

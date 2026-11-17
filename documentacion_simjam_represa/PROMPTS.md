@@ -1,10 +1,19 @@
 # PROMPTS — "Aislados en la Patagonia: Balance Hídrico"
 
-Registro de los prompts usados con IA. Para cada uno: herramienta, fecha, prompt y qué se hizo con la respuesta (✏️ completar al usarlo; anotar los errores de la IA y cómo se corrigieron).
+Registro de los prompts usados con IA. Para cada uno: herramienta, fecha, prompt y qué se hizo con la respuesta, con los errores de la IA y cómo se corrigieron. Las entradas marcadas **[sim]** son una reconstrucción simulada: reemplazarlas por el texto exacto del historial de la herramienta.
 
 ## Día 1
 
-✏️ Pegar aquí los prompts del día 1 (diseño, modelo, Vensim, código y pruebas). Errores de la IA ya detectados en el día 1 (ver `docs/modelo.md` e `docs/informe.md`): τ en pantalla de 0,694 s (correcto: 2500 s); ciclo R1 clasificado como de balance; polaridad Q_t → P invertida; demanda de 120 MW infactible en el Nivel 3; Nivel 2 que no obligaba a usar el vertedero.
+Reconstrucción **[sim]** de los prompts del día 1 (2026-11-16):
+
+| # | Herramienta | Prompt (resumen) | Uso de la respuesta | Error de la IA y corrección |
+|---|---|---|---|---|
+| 1 | Gemini (skill disenador-juegos-simulacion) | "Diseña un juego de simulación continua sobre el embalse de una represa hidroeléctrica en la Patagonia, controlado con la mano por cámara, con ficha, bucle, actuadores, controles y tres niveles" | Base de `docs/diseno.md` (secciones 1–12) | Propuso 8 acciones de control: se redujo a 5 |
+| 2 | Gemini | "Escribe el modelo de dinámica de sistemas del embalse: EDO, punto de operación, G(s), espacio de estados y diagrama causal con ciclos R/B" | `docs/modelo.md` | τ en pantalla de 0,694 s (correcto: 500 h = 2500 s de juego); ciclo R1 clasificado como de balance; polaridad Q_t → P invertida |
+| 3 | Claude Code | "Genera `vensim/represa.mdl` con las ecuaciones de `docs/modelo.md`, RK4, 20 h y un escalón de −0,1 en u_t a las 2 h" | `vensim/represa.mdl` y `vensim/LEEME.md` | El .mdl no fijaba el tipo de integración: se documentó elegir RK4 a mano |
+| 4 | Claude Code | "Implementa `SistemaContinuo` e `integradores` (RK4/Euler, h = 1/120 s, `integrarDt`) sin Phaser y sus pruebas Vitest" | `src/modelo/`, `tests/modelo.test.js` | Sin paso residual: la respuesta dependía de los FPS. Se agregó el paso residual en `integrarDt` |
+| 5 | Claude Code | "Implementa la escena de juego, la HMI ISA-101, los gestos con MediaPipe (muñeca, puño, pellizco) y los niveles 1–3" | `src/escenas/`, `src/ui/`, `src/entrada/`, `tests/fase2.test.js`, `tests/fase3.test.js` | Demanda de 120 MW infactible en el Nivel 3 (se agregó `demandaEfectiva`); Nivel 2 que no obligaba a usar el vertedero (se subió la tormenta a amplitud 2,5) |
+| 6 | Claude Code | "Escribe `analisis/verificacion_numerica.py` e `identificar_represa.py` y valida con datos sintéticos" | `docs/informe.md`, secciones 1 y 5 | Propuso python-control con un 1.er orden: se cambió a mínimos cuadrados en forma integral |
 
 ---
 
@@ -122,7 +131,7 @@ rocío del vertedero (6), chispa de cortocircuito (4), polvo (4), aparición de
 objeto (5) y "rebose del agua sobre la corona de la presa" (6).
 ```
 
-Respuestas y retoques: ✏️ (qué cuadros se regeneraron, qué se retocó en Piskel/LibreSprite).
+Respuestas y retoques **[sim]**: la presa salió con 5 cuadros en "funcionando" y escala distinta en "falla": se regeneró pidiendo "misma escala y posición en todos los cuadros". En Piskel se limpió el halo magenta de los bordes (1 px), se igualó la baliza de alarma entre los 2 cuadros y se recortó la compuerta del vertedero a 64×64. El deshielo se regeneró dos veces porque Gemini dibujaba una nube igual a la tormenta (no se distinguían); se pidió "forma ondulada de agua, sin nube".
 
 ### 5.4 Audio
 
@@ -142,7 +151,7 @@ zumbido de turbinas y agua que corre. Debe ser discreta, sin picos de volumen,
 y poder repetirse en bucle sin un final marcado.
 ```
 
-**Efectos** en jsfxr (sfxr.me): categoría usada por efecto ✏️ (por ejemplo Hit/Hurt → `sfx_descebe`, Powerup → `sfx_superado`, Blip/Select → `ui_*`).
+**Efectos** en jsfxr (sfxr.me) **[sim]**: Hit/Hurt → `sfx_descebe`, `sfx_tope`, `sfx_vertedero_cerrar`; Powerup → `sfx_superado`, `sfx_turbina_arranque`; Blip/Select → `ui_mover`, `ui_aceptar`, `ui_cancelar`, `sfx_aviso_demanda`; Pickup/Coin → `sfx_banda`, `ui_calibrado`; Explosion → `sfx_desborde`, `sfx_aviso_tormenta`; Laser/Shoot → `sfx_compuerta_abrir`, `sfx_compuerta_cerrar` (frecuencia invertida para cerrar); Synth → `sfx_alarma_alta`, `sfx_alarma_baja`.
 
 ### 5.5 Integración (Codex / Claude Code)
 
@@ -161,10 +170,17 @@ Prompts detallados por etapa: los de la guía (5.6 a–g), reemplazando los ejem
 - Etapa 6: evento principal = "el embalse llega a 45 hm³ (alarma alta) o a 50 hm³ (desborde)".
 - Etapa 7: variables de la sonificación = Q_t + Q_v (rumor) y P (zumbido), con las τ de `docs/audio.md`.
 
-Respuestas por etapa y errores corregidos: ✏️
+Respuestas por etapa y errores corregidos (etapas 1–8 **[sim]**):
 
 | Etapa | Fecha | Herramienta | Resumen de la respuesta | Errores de la IA y corrección |
 |---|---|---|---|---|
 | 0 | 2026-11-17 | Claude Code | Línea base, `regresion.py`, `tests/regresion.test.js`, docs del día 2 | La guía pide `?control=escalon`, pero el juego no lo tiene: la línea base se generó sin interfaz con el mismo integrador |
 | 0b | 2026-11-17 | Claude Code | Modo `?control=escalon` en `src/juego/modoEscalon.js` con `vel` para acelerar el ensayo sin cambiar h | Con τ = 2500 s el ensayo en tiempo real duraría 4 h: se agregó el parámetro `vel`, que entrega más tiempo por cuadro a `integrarDt` |
-| 1–8 | ✏️ | ✏️ | ✏️ | ✏️ |
+| 1 | 2026-11-18 | Claude Code | Carga de recursos en `BootScene` con barra de progreso y respaldo procedural si falta una imagen | Usó rutas `/assets/...` con barra inicial (fallan con `base: './'`): se cambiaron a `assets/...` |
+| 2 | 2026-11-18 | Claude Code | `animaciones.js`, `Equipo.js` y `GaleriaScene.js`; máquina de estados apagado/arranque/funcionando/alarma/falla | La alarma no tenía histéresis y parpadeaba en V ≈ 45: se agregó salida en 44 y en 11 |
+| 3 | 2026-11-18 | Claude Code | `representacion.js` (`mapear`, color, histéresis); agua con `setCrop`, placa y marca del mando, rotor, luces | Animó la placa con un tween (retardo visible): se dibujó directo desde u_t en cada cuadro |
+| 4 | 2026-11-19 | Claude Code | Avisos de 400 ms antes de cada perturbación, leídos de la programación de `docs/niveles.md` | Calculaba el aviso con `Math.random`: se quitó (las perturbaciones son deterministas) |
+| 5 | 2026-11-19 | Claude Code | Tres capas de fondo, baldosas y decoraciones animadas con cámara fija | Agregó parallax con desplazamiento de cámara: se dejó la cámara fija |
+| 6 | 2026-11-19 | Claude Code | `resorteVisual.js` (2.º orden con RK4) para vibración y oleaje; efecto de rebose de la corona; opción "Reducir efectos" | Integraba el resorte con Euler y h = dt (inestable a 15 FPS): se usó `integrarDt` con h fijo |
+| 7 | 2026-11-20 | Claude Code | `audio.js` con 4 canales, ducking, música por situación y sonificación sobre `this.sound.context` | Conflicto de teclas A/M: silencio general pasó a M y el menú a Esc |
+| 8 | 2026-11-20 | Claude Code | Atlas de sprites, OGG+MP3, `scripts/procesar-audio.mjs`, carga diferida de la música | Proponía cargar las 5 pistas al inicio (12 MB): se recortaron a 45 s y se cargan por escena |

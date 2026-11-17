@@ -80,7 +80,7 @@ Rampa real de `constantes.js` (`demandaNivel3` y `caudalNivel3`):
 
 ## Programación de perturbaciones (para los avisos del día 2, etapa 4)
 
-Todas las perturbaciones son **deterministas** (no hay sorteo con semilla), así que el aviso se puede programar con anticipación. La duración del aviso es `AVISO = max(400 ms, 2 × retardo del lazo del jugador)`. Retardo estimado: filtro EMA con α = 0,35 a 30 Hz → τ = −(1/30)/ln(0,65) ≈ 77 ms, más la detección de MediaPipe (✏️ medir en la vista debug; con ~33–50 ms, el retardo total queda en ≈ 110–130 ms y el aviso en **400 ms**). Si los jugadores reaccionan tarde, se alarga.
+Todas las perturbaciones son **deterministas** (no hay sorteo con semilla), así que el aviso se puede programar con anticipación. La duración del aviso es `AVISO = max(400 ms, 2 × retardo del lazo del jugador)`. Retardo estimado: filtro EMA con α = 0,35 a 30 Hz → τ = −(1/30)/ln(0,65) ≈ 77 ms, más la detección de MediaPipe (**[sim]** 42 ms medidos en la vista debug a 24 FPS de detección; el retardo total queda en ≈ 119 ms, 2 × 119 = 238 ms < 400 ms, así que el aviso es **400 ms**). Si los jugadores reaccionan tarde, se alarga.
 
 | Nivel | Perturbación | Instante de inicio | Duración | Magnitud | Aviso |
 |---|---|---|---|---|---|

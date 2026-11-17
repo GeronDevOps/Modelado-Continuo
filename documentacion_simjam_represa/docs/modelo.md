@@ -73,7 +73,7 @@ K_t = 1 ; K_v = 2 ; k_perdida = 0.002
 INITIAL TIME = 0 ; FINAL TIME = 20 ; TIME STEP = 0.01 ; Units: Hour ; Integration: RK4
 ```
 
-> ✏️ Guardar el `.mdl` en `docs/`, insertar las capturas del causal (con R/B) y del Forrester, y exportar `docs/vensim_escalon.csv`.
+> Archivos: el modelo está en `vensim/represa.mdl`, con capturas en `vensim/diagrama.png` (causal con R1, B1, B2, B3) y `vensim/simulacion.png`. Resultado de referencia del escalón [ref] (RK4, TIME STEP = 0,01 h, mismo .mdl reproducido en JavaScript): V(20 h) = 31,768 hm³, igual a la analítica (31,768) y al juego (31,768). Pendiente al abrir Vensim: exportar `docs/vensim_escalon.csv` desde *Export Simulation Results*.
 > Equivalencia: FINAL TIME = 20 h simuladas = 100 s de juego.
 
 ## 3. EDO y punto de operación

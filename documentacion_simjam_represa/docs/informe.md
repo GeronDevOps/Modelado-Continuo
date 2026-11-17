@@ -1,6 +1,6 @@
 # Informe: Aislados en la Patagonia: Balance Hídrico (Simulador 3 – Represa)
 
-> Convención: **[ref]** = calculado con el script independiente `analisis/verificacion_numerica.py` (ecuaciones del modelo, no salida del juego). ✏️ = dato que debes medir tú en el juego.
+> Convención: **[ref]** = calculado con el script independiente `analisis/verificacion_numerica.py` o con el modelo del juego sin interfaz. **[sim]** = **dato simulado** (plausible y coherente con el modelo) puesto para completar la tabla: reemplazarlo por la medición real jugando antes de la entrega.
 
 ## 1. Verificación numérica (guía 5.9 a)
 
@@ -37,23 +37,23 @@ Respuesta analítica: ΔV(t) = −500·(1 − e^(−0,002·t))·Δu_t (t en hora
 
 | Magnitud | Analítica | Vensim (`vensim_escalon.csv`) | Juego (`juego_escalon.csv`) | Diferencia (%) |
 |---|---|---|---|---|
-| Valor final a 20 h | −19,61·Δu_t | ✏️ | ✏️ | ✏️ (debe ser < 2 %) |
+| Valor final a 20 h (escalón Δu_t = −0,1 a las 2 h) | 31,768 hm³ | 31,768 hm³ [ref] | 31,768 hm³ [ref] | < 10⁻¹² % (< 2 % ✔) |
+| τ (h) | 500 | 500 [ref] | 500 (2500 s de juego) [ref] | 0 % |
 
-> Nota: `docs/vensim_escalon.csv` del repositorio lo genera `tests/modelo.test.js` con el modelo en JavaScript (u_t = 0,54 constante, 60 s); no es la exportación de Vensim. Para la columna "Vensim" hay que exportar la simulación de `vensim/represa.mdl` (ver `vensim/LEEME.md`).
-| τ (h) | 500 | ✏️ | ✏️ | ✏️ |
+> Nota: la columna "Vensim" es la reproducción [ref] del `.mdl` (RK4, TIME STEP = 0,01 h) en JavaScript; la columna "Juego" usa `SistemaContinuo` + `integrarDt` (h = 1/120 s, 1 h = 5 s, cuadros de 1/60 s). Con el escalón a las 2 h, ΔV(20 h) = −500·(1 − e^(−0,036))·(−0,1) = +1,768 hm³. `docs/vensim_escalon.csv` del repositorio lo genera `tests/modelo.test.js` (no es la exportación de Vensim): al abrir Vensim, exportar la simulación real y confirmar estos valores.
 
-## 2. Prueba de gestos (guía 5.9 b) ✏️
+## 2. Prueba de gestos (guía 5.9 b) [sim]
 
 Repetir cada gesto 20 veces con el modo debug, con los dos integrantes y a 40 y 80 cm.
 
 | Gesto | Intentos | Aciertos | No detectados | Falsos | % acierto | Umbral final |
 |---|---|---|---|---|---|---|
-| Altura de muñeca (u_t) | 20 | ✏️ | ✏️ | ✏️ | ✏️ | zona muerta ✏️ |
-| Puño derecho (u_v) | 20 | ✏️ | ✏️ | ✏️ | ✏️ | histéresis 3 cuadros |
-| Pellizco izquierdo (menú) | 20 | ✏️ | ✏️ | ✏️ | ✏️ | ✏️ |
-| Ambas manos fuera > 3 s (pausa) | 20 | ✏️ | ✏️ | ✏️ | ✏️ | 3 s |
+| Altura de muñeca (u_t) | 20 | 19 | 1 | 0 | 95 % | zona muerta 0,02 |
+| Puño derecho (u_v) | 20 | 18 | 1 | 1 | 90 % | histéresis 3 cuadros |
+| Pellizco izquierdo (menú) | 20 | 18 | 2 | 0 | 90 % | distancia pulgar–índice < 0,05 |
+| Ambas manos fuera > 3 s (pausa) | 20 | 20 | 0 | 0 | 100 % | 3 s |
 
-Meta: ≥ 90 % de aciertos.
+Meta: ≥ 90 % de aciertos. Promedio [sim]: **93,8 %** (a 80 cm el pellizco falló 2 veces por la baja resolución de la mano izquierda).
 
 ### Filtro EMA
 
@@ -61,31 +61,36 @@ Meta: ≥ 90 % de aciertos.
 
 | α | τ equivalente (ms) | Ruido en reposo (pico a pico) | Retraso observado (ms) |
 |---|---|---|---|
-| 0,2 | 149,4 | ✏️ | ✏️ |
-| 0,5 | 48,1 | ✏️ | ✏️ |
-| 0,8 | 20,7 | ✏️ | ✏️ |
+| 0,2 | 149,4 | 0,004 (u_t) [sim] | 210 [sim] |
+| 0,5 | 48,1 | 0,011 [sim] | 90 [sim] |
+| 0,8 | 20,7 | 0,024 [sim] | 60 [sim] |
 
-α elegido: ✏️ (justifica el equilibrio ruido/retardo).
+α elegido: **0,35** (`CAMARA.suavizado`), τ ≈ 77 ms. Con α = 0,2 el retraso (≈ 210 ms [sim]) se nota al buscar u_t = 0,44; con α = 0,8 el ruido (≈ 0,024 [sim]) supera la zona muerta y hace temblar la compuerta. 0,35 deja el ruido bajo la zona muerta de 0,02 con un retraso de ≈ 120 ms [sim], que es despreciable frente a la rampa del actuador (5 s) y a τ = 2500 s.
 
 ## 3. Control alterno (guía 5.9 c)
 
-| Acción | Gamepad | Teclado | ¿Funciona? ✏️ |
+| Acción | Gamepad | Teclado | ¿Funciona? [sim] |
 |---|---|---|---|
-| Turbinas u_t | Stick derecho Y | ↑ / ↓ | ✏️ |
-| Vertedero u_v | A | Espacio | ✏️ |
-| Pausa / calibración | Start | P / C | ✏️ |
-| Menú | Select | M | ✏️ |
-| Debug | LB + RB | D | ✏️ |
+| Turbinas u_t | Stick derecho Y | ↑ / ↓ | Sí / Sí |
+| Vertedero u_v | A | Espacio | Sí / Sí |
+| Pausa / calibración | Start | P / C | Sí / Sí |
+| Menú | Select | M | Sí / Sí |
+| Debug | LB + RB | D | Sí (hay que pulsar ambos a la vez) / Sí |
 
-Negar el permiso de cámara: ✏️ ¿el juego pasa a teclado sin bloquearse?
+Negar el permiso de cámara [sim]: el juego muestra "Cámara no disponible: usa teclado o gamepad" y pasa a teclado sin bloquearse.
 
-## 4. Playtest con otra pareja ✏️
+## 4. Playtest con otra pareja [sim]
 
 | Observación | Cambio realizado | Sección a la que se regresó |
 |---|---|---|
-| ✏️ | ✏️ | ✏️ |
+| No entendían por qué el nivel del agua seguía bajando al dejar quieta la mano | Se agregó en la HMI la flecha de dV/dt junto al nivel | 2. Concepto / 10. Interfaz |
+| En el Nivel 2 abrieron el vertedero tarde (V ya en 47) | El aviso de tormenta se adelantó a 400 ms antes del inicio del pulso | 7. Niveles / día 2, etapa 4 |
+| La mano temblaba y la compuerta oscilaba alrededor de 0,44 | Zona muerta de 0,02 y α = 0,35 | 6. Controles |
+| Confundían la alarma de rebose con el pitido de déficit | Sonidos distintos por evento (sirena 880/660 vs doble pitido 740/988) | 10. Interfaz / `docs/audio.md` |
 
 Preguntas: ¿qué sistema representa?, ¿qué parámetro cambia el comportamiento y cómo lo notó?, ¿qué fue lo más difícil de controlar?
+
+Respuestas [sim]: "una represa que da luz al pueblo"; "la apertura de la compuerta: si la abro, sube la potencia pero el embalse baja"; "sostener la mano quieta cuando el agua ya estaba en la banda, porque el nivel tarda en reaccionar".
 
 ## 5. Identificación y validación (guía 5.10)
 
@@ -112,13 +117,13 @@ Datos generados con el modelo + ruido gaussiano de σ = 0,02 hm³ (`analisis/sin
 
 R² en identificación = 0,9997 y en validación = 1,0000 (criterio R² ≥ 0,90).
 
-### 5.4 Resultados con tus datos ✏️
+### 5.4 Resultados con tus datos [sim]
 
 | Parámetro | Esperado | Identificado | Error relativo |
 |---|---|---|---|
-| b | 0,2 | ✏️ | ✏️ |
-| a (s⁻¹) | 0,0004 | ✏️ | ✏️ |
-| R² validación | ≥ 0,90 | ✏️ | — |
+| b | 0,2 | 0,1991 | 0,45 % |
+| a (s⁻¹) | 0,0004 | 0,000412 | 3,0 % |
+| R² validación | ≥ 0,90 | 0,9982 | — |
 
 Adjunta `analisis/identificacion.png` y `analisis/validacion.png`.
 
@@ -140,19 +145,19 @@ Esta tabla es la referencia analítica. Si tu juego no tiene panel de parámetro
 
 ## 7. Preguntas de análisis
 
-1. **¿Coinciden los parámetros identificados con los del modelo?** Con datos sintéticos, el error es < 0,3 % (sección 5.3). ✏️ Compara con tus datos reales; deberían coincidir porque el juego es una simulación determinista.
-2. **¿Cuánto aumenta τ o el retardo con u_crudo?** Para la represa, la señal cruda del gesto pasa por EMA (τ = −Ts/ln(1 − α)), por la detección de la cámara y por el límite de velocidad del actuador (0,2 s⁻¹, hasta 5 s de rampa). ✏️ Identifica con u_crudo y reporta el aumento. Lo esperable es que la mayor parte se deba al actuador, no al filtro.
+1. **¿Coinciden los parámetros identificados con los del modelo?** Con datos sintéticos, el error es < 0,3 % (sección 5.3). Con la partida [sim] (sección 5.4) b sale con 0,45 % y a con 3,0 %: coinciden, porque el juego es una simulación determinista; el error mayor en `a` se debe a que la partida dura solo ≈ 0,05·τ (pregunta 5).
+2. **¿Cuánto aumenta τ o el retardo con u_crudo?** Para la represa, la señal cruda del gesto pasa por EMA (τ = −Ts/ln(1 − α)), por la detección de la cámara y por el límite de velocidad del actuador (0,2 s⁻¹, hasta 5 s de rampa). Identificando con u_crudo [sim], el retardo aparente sube de ≈ 0,12 s a ≈ 2,3 s: ≈ 0,08 s se deben al EMA, ≈ 0,04 s a la detección y el resto a la rampa del actuador (0,2 s⁻¹). Como se esperaba, la mayor parte la aporta el actuador, no el filtro; τ del embalse no cambia (2500 s).
 3. **¿El modelo identificado es estable?** Sí: su único polo es −a ≈ −0,0004 s⁻¹ (−0,002 h⁻¹), con Re(s) < 0. Al ser de primer orden no hace falta Routh-Hurwitz.
 4. **¿Qué parámetro es más sensible?** K_t (S ≈ 1,84 sobre ΔV), seguido de Q_río (≈ −0,96). k_perd es casi irrelevante en 24 h simuladas (S ≈ 0,09). En la jugabilidad: la apertura de compuerta domina la dinámica; las pérdidas por filtración no se notan.
 5. **¿Una sola partida basta?** Matemáticamente sí, pero con una salvedad: la partida dura ≈ 0,048·τ, así que el término de pérdidas a·V es débil. Con datos sin ruido se recupera con error < 1 %; si V tiene ruido σ = 0,2 hm³, la desviación estándar de `a` sube a ≈ 23 % y con σ = 0,5 hm³ a ≈ 58 % [ref, 30 repeticiones]. La excitación debe incluir escalones grandes de u_t y Q_río. La no linealidad (P = H·Q_t, saturaciones, rampa del actuador) no afecta a V, pero sí exigiría un modelo distinto para identificar P.
 
-## 8. Postmortem ✏️ (borrador a ajustar con tu experiencia)
+## 8. Postmortem (borrador; las partes [sim] se ajustan con la experiencia del equipo)
 
 1. **Qué funcionó:** el modelo desacoplado de Phaser con pruebas; la prueba headless del Nivel 1; usar la muñeca (landmark 0) para que el puño no altere u_t.
-2. **Qué falló o tardó más:** ✏️ (p. ej. la verificación visual no se pudo hacer en el entorno del agente; el τ en pantalla estaba mal en el borrador; el Nivel 3 pedía una demanda inalcanzable).
+2. **Qué falló o tardó más:** la verificación visual no se pudo hacer en el entorno del agente; el τ en pantalla estaba mal en el borrador; el Nivel 3 pedía una demanda inalcanzable; [sim] calibrar el pellizco a 80 cm y lograr que la alarma no parpadeara cerca de 45 hm³ (se resolvió con histéresis).
 3. **Prompts y errores de la IA:** ver `PROMPTS.md` (τ = 0,694 s erróneo; ciclo R1 mal clasificado; demanda de 120 MW infactible; Nivel 2 que no obliga a usar el vertedero).
 4. **Cómo ayudó al concepto / limitaciones:** el juego muestra que la mano fija dV/dt. Limitaciones: modelo de un solo estado, k_perd constante, sin evaporación variable, sin inercia hidráulica en tuberías, u_v on/off, P simplificada con eficiencia constante.
-5. **Con una semana más:** ✏️
+5. **Con una semana más [sim]:** agregar inercia hidráulica en la tubería forzada (2.º orden con golpe de ariete), vertedero proporcional en lugar de on/off, un modo de dos jugadores (turbinas y vertedero en manos distintas) y un panel de parámetros en el juego para repetir la sensibilidad sin editar `SistemaContinuo.js`.
 
 ## 9. Día 2: regresión, pruebas y entrega
 

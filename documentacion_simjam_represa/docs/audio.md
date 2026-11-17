@@ -107,11 +107,11 @@ Las alarmas de prioridad alta siempre se oyen sobre la música. Los volúmenes s
 | Rumor del agua, zumbido, alerta de déficit | — (síntesis en `Sonido.js`) | Creación propia, código del proyecto | Continua |
 | Alarmas de rebose y cavitación | — (síntesis en `Alarmas.js`) | Creación propia | 0,25 / 0,3 |
 | Trueno | — (síntesis en `Efectos.js`) | Creación propia | 1,4 |
-| ✏️ Música de menú | `musica_menu.mp3` | ✏️ Gemini Música (SynthID) / Kenney CC0 | ✏️ |
-| ✏️ Música de operación | `musica_operacion.mp3` | ✏️ | ✏️ |
-| ✏️ Música de tormenta | `musica_tormenta.mp3` | ✏️ | ✏️ |
-| ✏️ Música de nivel superado | `musica_superado.mp3` | ✏️ | ✏️ |
-| ✏️ Música de nivel fallido | `musica_fallido.mp3` | ✏️ | ✏️ |
-| ✏️ Cada efecto de las secciones 2 y 3 | `sfx_*.wav` | ✏️ jsfxr (sfxr.me, dominio público) / Freesound CC0 | ✏️ |
+| Música de menú [sim] | `musica_menu.ogg/.mp3` | Gemini Música (Lyria 3, marca SynthID), generada por el equipo | 45 |
+| Música de operación [sim] | `musica_operacion.ogg/.mp3` | Gemini Música (Lyria 3, SynthID) | 60 |
+| Música de tormenta [sim] | `musica_tormenta.ogg/.mp3` | Gemini Música (Lyria 3, SynthID) | 45 |
+| Música de nivel superado [sim] | `musica_superado.ogg/.mp3` | Kenney *Music Jingles* (CC0) | 30 |
+| Música de nivel fallido [sim] | `musica_fallido.ogg/.mp3` | Gemini Música (Lyria 3, SynthID) | 30 |
+| Efectos de las secciones 2 y 3 [sim] | `sfx_*.ogg/.mp3`, `ui_*.ogg/.mp3` | jsfxr (sfxr.me, dominio público; categorías en `PROMPTS.md` 5.4); `sfx_desborde` mezclado con agua de Freesound (CC0) | 0,05 – 1,0 (ver secciones 2 y 3) |
 
 Los archivos que exijan atribución (CC-BY) se mencionan en una pantalla de créditos. La música de Gemini lleva la marca de agua SynthID y la herramienta es para mayores de 18 años: revisar las condiciones de uso de Google antes de publicar el juego fuera del aula.
