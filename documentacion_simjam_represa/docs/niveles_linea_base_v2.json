@@ -1,0 +1,97 @@
+{
+  "NIVEL1": {
+    "id": 1,
+    "nombre": "TURNO TRANQUILO",
+    "modo": "calibracion",
+    "duracion_s": 120,
+    "V0": 25,
+    "ut0": 0.2,
+    "Qrio": 0.5,
+    "P_demanda": 47.4,
+    "uv_habilitado": false,
+    "inicio_calibracion_s": 0,
+    "tiempo_banda_minimo": 10,
+    "error_P_max": 0.05,
+    "instruccion": "TUTORIAL: llena el embalse hasta 30 ± 3 hm³, entrega 47.4 MW (±5%) y sostenlo 10 s."
+  },
+  "NIVEL2": {
+    "id": 2,
+    "nombre": "TORMENTA CORDILLERANA",
+    "modo": "calibracion",
+    "duracion_s": 150,
+    "V0": 30,
+    "ut0": 0.44,
+    "Qrio": 0.5,
+    "tormenta_inicio_s": 15,
+    "tormenta_fin_s": 105,
+    "tormenta_amplitud": 2.5,
+    "alerta_inicio_s": 5,
+    "inicio_calibracion_s": 90,
+    "pronostico_s": 10,
+    "tronco_inicio_s": 45,
+    "tronco_fin_s": 53,
+    "tronco_uv_max": 0.25,
+    "P_demanda": 47.4,
+    "uv_habilitado": true,
+    "tiempo_banda_minimo": 10,
+    "error_P_max": 0.15,
+    "V_final_tolerancia": 5,
+    "instruccion": "OBJETIVO: sobrevive a la tormenta (V < 50) y desde t = 90 s calibra 10 s: V 30 ± 3, P ±15%."
+  },
+  "NIVEL3": {
+    "id": 3,
+    "nombre": "HORA PICO Y DESHIELO",
+    "modo": "supervivencia",
+    "duracion_s": 120,
+    "V0": 30,
+    "ut0": 0.44,
+    "Qrio": 0.5,
+    "periodo_Q_s": 40,
+    "demanda_escalones_MW": [
+      45,
+      70,
+      100,
+      120,
+      75,
+      30
+    ],
+    "escalon_s": 20,
+    "rampa_s": 4,
+    "P_demanda": 45,
+    "uv_habilitado": true,
+    "sectores": [
+      {
+        "id": "hospital",
+        "nombre": "HOSPITAL",
+        "fijo_MW": 15,
+        "cortable": false,
+        "peso": 0
+      },
+      {
+        "id": "industria",
+        "nombre": "INDUSTRIA",
+        "fraccion": 0.45,
+        "cortable": true,
+        "tecla": "ONE",
+        "etiquetaTecla": "1",
+        "peso": 1
+      },
+      {
+        "id": "casas",
+        "nombre": "CASAS",
+        "fraccion": 0.55,
+        "cortable": true,
+        "tecla": "TWO",
+        "etiquetaTecla": "2",
+        "peso": 1.5
+      }
+    ],
+    "averia_inicio_s": 62,
+    "averia_fin_s": 77,
+    "averia_ut_max": 0.66,
+    "aviso_averia_s": 3,
+    "rmse_max_MW": 8,
+    "ens_max": 0.12,
+    "instruccion": "OBJETIVO: aguanta el turno con RMSE ≤ 8 MW sin desbordar. Sin capacidad: corta un barrio [1]/[2]."
+  }
+}

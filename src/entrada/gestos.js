@@ -31,6 +31,22 @@ export function aperturaDesdeAltura(y, calib) {
 }
 
 /**
+ * Posición del vertedero con la mano izquierda (dos posiciones de puño):
+ *   mano abierta → 0 · puño por debajo de la mitad del rango calibrado → 0,5 ·
+ *   puño por encima de la mitad → 1.
+ *
+ * @param {boolean} puno
+ * @param {number|null} y - y de la muñeca izquierda [0,1]
+ * @param {{yBajo:number,yAlto:number}} calib
+ * @returns {number} 0 | 0.5 | 1
+ */
+export function posicionVertederoPuno(puno, y, calib) {
+  if (!puno) return 0;
+  if (y === null || y === undefined) return 1;
+  return aperturaDesdeAltura(y, calib) >= 0.5 ? 1 : 0.5;
+}
+
+/**
  * ¿La calibración tiene un rango utilizable?
  */
 export function calibracionValida(calib) {

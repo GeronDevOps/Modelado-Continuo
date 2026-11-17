@@ -8,7 +8,7 @@ Simulador N.º 3 (Represa hidroeléctrica) · SimJam de Modelado y Simulación d
 | Tipo | Símbolo | Significado en el juego | Unidad | Rango |
 |---|---|---|---|---|
 | Entrada 1 (gesto) | u_t(t) | Apertura de compuertas de turbinas (altura de la muñeca derecha) | adim. | [0, 1] |
-| Entrada 2 (gesto) | u_v(t) | Apertura del vertedero (puño derecho: mando on/off; la compuerta sigue el mando a 0,5 s⁻¹) | adim. | [0, 1] |
+| Entrada 2 (gesto) | u_v(t) | Apertura del vertedero (puño izquierdo: 50 % abajo / 100 % arriba; teclado [E]/[Q] continuo; la compuerta sigue el mando a 0,5 s⁻¹) | adim. | [0, 1] (≤ 0,25 con el tronco del N2) |
 | Perturbación | Q_río(t) | Caudal de entrada (lluvia, deshielo, tormenta) | hm³/h | 0,5 – 2,5 |
 | Estado | V(t) | Volumen almacenado en el embalse | hm³ | 0 – 50 (físico; puede cruzar para detectar falla) |
 | Salida visible | y(t) = V(t) | Nivel del agua en pantalla | hm³ | 0 – 50 |
@@ -130,7 +130,7 @@ Dimensiones: A 1×1, B 1×2, E 1×1, C 1×1, D 1×2. ✔ Es la forma programada 
 
 ## 7. Niveles
 
-Parámetros, perturbaciones y criterios: ver `docs/niveles.md` (copia fiel de la configuración en `src/config/constantes.js`). Todos los niveles se aprueban con 10 s continuos calibrados (V en 30 ± 3 y potencia en tolerancia).
+Parámetros, perturbaciones y criterios: ver `docs/niveles.md` (copia fiel de `src/config/constantes.js` y `src/juego/mecanicasNivel.js`). El N1 (arranca en V₀ = 25) y el N2 (solo desde t = 90 s) se aprueban con 10 s continuos calibrados (V en 30 ± 3 y potencia en tolerancia); el N3 se juega completo y se aprueba con RMSE ≤ 8 MW y ENS ≤ 12 %. Los niveles solo cambian Q_río(t), la referencia y los **límites de los actuadores** (u_t ≤ 0,66 durante la avería del N3, u_v ≤ 0,25 con el tronco del N2); las ecuaciones y los parámetros del modelo no cambian.
 
 ## 8. Escala física → pantalla
 

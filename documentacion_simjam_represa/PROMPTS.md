@@ -184,3 +184,17 @@ Respuestas por etapa y errores corregidos (etapas 1–8 **[sim]**):
 | 6 | Claude Code | `resorteVisual.js` (2.º orden con RK4) para vibración y oleaje; efecto de rebose de la corona; opción "Reducir efectos" | Integraba el resorte con Euler y h = dt (inestable a 15 FPS): se usó `integrarDt` con h fijo |
 | 7 | Claude Code | `audio.js` con 4 canales, ducking, música por situación y sonificación sobre `this.sound.context` | Conflicto de teclas A/M: silencio general pasó a M y el menú a Esc |
 | 8 | Claude Code | Atlas de sprites, OGG+MP3, `scripts/procesar-audio.mjs`, carga diferida de la música | Proponía cargar las 5 pistas al inicio (12 MB): se recortaron a 45 s y se cargan por escena |
+
+## Rediseño de niveles (2026-11-17)
+
+Prompts usados con Claude Code:
+
+1. "Revisa los 3 niveles del juego y dame recomendaciones que podemos añadir para que el juego no sea igual en los 3 niveles y cambien cosas, también para que sea un poco más entretenido."
+2. "Implementa los niveles como los acabas de reescribir, pero también edita la documentación del código, dependiendo de cómo cambió los niveles."
+
+| Paso | Resumen de la respuesta | Errores de la IA y corrección |
+|---|---|---|
+| Revisión | Simuló los 3 niveles sin tocar los controles: los tres se aprobaban a los 10,0 s porque empezaban en el equilibrio. Propuso una mecánica propia por nivel | — |
+| Implementación | `src/juego/mecanicasNivel.js` (etapas, fases, pronóstico, tronco, avería, barrios, `evaluarNivel`); cambios en `JuegoScene`, `ResultadosScene`, `NivelesScene`, `gestos.js` y `ManoCamara.js`; `NIVEL1/2/3` nuevos en `constantes.js` | El umbral de ENS del N3 en 10 % dejaba solo un 2 % de margen al jugador que corta la industria (8,0 %): se subió a 12 %. Los textos de objetivo del N2 y del N3 ocupaban dos líneas y tapaban la guía: se acortaron |
+| Pruebas | `analisis/simular_niveles.mjs` (mismo orden que `JuegoScene.update()`), `tests/niveles.test.js` y `tests/fase3.test.js` reescrito; 62/62 | La prueba de regresión comparaba los niveles con la línea base del día 2 y fallaba (el cambio era a propósito): se separó en "modelo sin cambios" (`niveles_linea_base.json`) y "niveles = rediseño" (`niveles_linea_base_v2.json`) |
+| Navegador | El N1 en el juego real aprueba a t = 62,8 s, igual que la simulación; N2 y N3 con un jugador por script aprueban con los mismos números que la simulación | El modo `?control=escalon` usaría V₀ = 25 del N1 nuevo: se fijó al punto de operación de la línea base (V₀ = 30, u_t = 0,44) |

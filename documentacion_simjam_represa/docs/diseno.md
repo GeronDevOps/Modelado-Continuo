@@ -7,7 +7,7 @@
 | Nombre | Aislados en la Patagonia: Balance Hídrico |
 | Sistema simulado | Embalse de una represa hidroeléctrica (dinámica de sistemas, U2) |
 | Jugadores | 1 (un solo portátil con cámara; teclado y gamepad como alternativa) |
-| Duración de partida | Hasta 120 s de juego = 24 h simuladas (termina antes al lograr 10 s continuos calibrados) |
+| Duración de partida | N1 y N3: 120 s de juego = 24 h simuladas; N2: 150 s. El N1 y el N2 terminan antes al lograr 10 s continuos calibrados; el N3 se juega completo |
 | Ambientación | Noche lluviosa en la cordillera patagónica, central aislada por un temporal |
 | Stack | Phaser 3 · JavaScript ES · Vite · MediaPipe HandLandmarker |
 
@@ -32,24 +32,26 @@ Fallas (niveles 2 y 3): V ≤ 5 → DESCEBE (derrota); V ≥ 50 → DESBORDE (de
 
 ## 4. Bucle principal (cada 10 s de partida = 2 h simuladas)
 
-1. Mirar en la HMI la curva P_demanda vs P.
+1. Mirar en la HMI la curva P_demanda vs P y el panel propio del nivel (etapas del tutorial, parte meteorológico o despacho de carga).
 2. Ajustar u_t con la mano para igualar P a la demanda.
-3. Vigilar V (banda 30 ± 3; alarmas en 45 y 10) hasta sumar 10 s continuos calibrados.
-4. Ante tormenta (Q_río sube), abrir el vertedero si V se acerca a 50.
+3. Vigilar V (banda 30 ± 3; alarmas en 45 y 10) hasta sumar 10 s continuos calibrados (N1; N2 solo en la recuperación).
+4. Ante tormenta (Q_río sube, el pronóstico avisa 10 s antes), abrir el vertedero a medias o completo si V se acerca a 50.
+5. En el N3, si la demanda supera la capacidad disponible, deslastrar un barrio y reconectarlo cuando alcance.
 
 ## 5. Actuadores
 
 | Actuador | Rango | Saturación | Velocidad máxima |
 |---|---|---|---|
-| Turbinas u_t | 0 – 1 | [0, 1] | 0,20 s⁻¹ (0 → 100 % en 5 s), rampa hacia la referencia del gesto |
-| Vertedero u_v | 0 – 1 (mando on/off) | [0, 1] | 0,50 s⁻¹ (abre en 2 s), rampa hacia el mando |
+| Turbinas u_t | 0 – 1 | [0, 1]; [0, 0,66] durante la avería del N3 (62–77 s) | 0,20 s⁻¹ (0 → 100 % en 5 s), rampa hacia la referencia del gesto |
+| Vertedero u_v | 0 – 1 (mando continuo con teclado; 0 / 0,5 / 1 con el puño) | [0, 1]; [0, 0,25] con el tronco del N2 (45–53 s) | 0,50 s⁻¹ (abre en 2 s), rampa hacia el mando |
 
 ## 6. Controles (máximo 5 acciones)
 
 | Acción | Cámara (HandLandmarker) | Gamepad | Teclado |
 |---|---|---|---|
 | Turbinas u_t | Altura de la **muñeca (landmark 0)** de la mano derecha, normalizada 0–1, con EMA y zona muerta | Stick derecho eje Y | ↑ / ↓ |
-| Vertedero u_v | Puño cerrado de la mano derecha (puntas 8, 12, 16, 20 más cerca de la muñeca que sus PIP), histéresis de 3 cuadros | Botón A | Barra espaciadora |
+| Vertedero u_v | Puño cerrado de la mano **izquierda** (puntas 8, 12, 16, 20 más cerca de la muñeca que sus PIP): puño bajo = 50 %, puño alto (sobre la mitad del rango calibrado) = 100 %, mano abierta = cerrado | Botón A | [E] abre y [Q] cierra poco a poco (la posición se queda); [ESPACIO] mantenido = 100 % |
+| Deslastre de barrios (solo N3) | — (se usa el teclado también en modo cámara) | — | [1] industria · [2] casas (el hospital no se corta) |
 | Pausa / calibración | Ambas manos fuera de la zona > 3 s | Start | P / C |
 | Menú / opciones | Pellizco de la mano izquierda | Select | M |
 | Vista debug | — | LB + RB | D |
@@ -59,7 +61,15 @@ Decisión de diseño: se usa la **muñeca** y no el centro de la palma para que 
 
 ## 7. Niveles
 
-Ver `docs/niveles.md`: Nivel 1 Turno Tranquilo (obligatorio), Nivel 2 Tormenta Cordillerana, Nivel 3 Hora Pico y Deshielo. Los niveles 2 y 3 se desbloquean al aprobar el anterior.
+Ver `docs/niveles.md`. Cada nivel enseña una mecánica distinta:
+
+| Nivel | Mecánica propia | Cómo se gana |
+|---|---|---|
+| 1 Turno Tranquilo (tutorial) | Arranca fuera del equilibrio (V₀ = 25, u_t = 0,20); etapas guiadas llenar → potencia → sostener y flecha junto a u_t | 10 s continuos calibrados (máx. 120 s) |
+| 2 Tormenta Cordillerana | Fases calma → alerta → tormenta → recuperación, pronóstico de Q_río a +10 s, vertedero parcial y tronco que lo bloquea | Sobrevivir sin desbordar y calibrar 10 s desde t = 90 s (máx. 150 s) |
+| 3 Hora Pico y Deshielo | Demanda por barrios con deslastre, capacidad disponible y avería de una turbina | Turno completo con RMSE ≤ 8 MW y ENS ponderada ≤ 12 % |
+
+Todos los niveles se pueden elegir desde el menú; al aprobar uno aparece el botón "SIGUIENTE" en la pantalla final.
 
 ## 8. Elementos visuales
 
@@ -85,14 +95,16 @@ Fondo #111111, color intenso solo para alarmas.
 - Tendencia de 30 s: P(t) verde #52b788; P_demanda amarilla punteada; V(t) azul en eje secundario.
 - Manómetro de H (20–60 m); indicadores de u_t (0–100 %) y u_v.
 - Alarmas intermitentes #e63946 / #f4a261 con texto y sonido.
-- Contador de calibración continua (meta 10 s) y tiempo restante del turno.
+- Contador de calibración continua (meta 10 s; en el N2 "BLOQUEADA" hasta t = 90 s; en el N3 muestra |P − D| y el RMSE acumulado) y tiempo restante del turno.
+- Panel propio del nivel (arriba a la izquierda): etapas del tutorial (N1), parte meteorológico con fase, pronóstico y estado del vertedero (N2), o despacho de carga con barrios, capacidad, V necesario y ENS (N3).
+- Banner central que anuncia fases y eventos (tormenta, tronco, avería, deslastre).
 
 ## 11. Pantalla "Lo que pasó en el modelo"
 
-- Gráficas 0–120 s: u_t, Q_río, V y P vs P_demanda.
+- Gráficas de 0 a la duración del nivel (120 o 150 s): V y P vs la demanda activa.
 - Métricas: RMSE de potencia, desviación máxima de V respecto a V₀, % de tiempo en banda.
-- Resultado del nivel (aprobado / no) con el valor del criterio y, en el Nivel 3, la regla de factibilidad.
-- Texto educativo y botón "Descargar datos" (`partida_represa.csv`: t_s, V_hm3, H_m, ut, uv, Qrio, P_MW, Pdemanda_MW, Pref_MW).
+- Resultado del nivel (aprobado / no) con el motivo (tiempo agotado, desborde, descebe, RMSE o ENS) y las métricas propias de cada nivel; las que no deciden el resultado se marcan "informativo".
+- Texto educativo y botón "Descargar datos" (`partida_represa.csv`: t_s, V_hm3, H_m, ut, uv, Qrio, P_MW, Pdemanda_MW, Pref_MW, ut_max, uv_max, cortados). Pref_MW es la demanda activa (sin barrios cortados); ut_max y uv_max son los límites del instante (avería, tronco).
 
 ## 12. Alcance
 
@@ -108,3 +120,13 @@ Regla: el arte y el sonido **leen** el estado de `SistemaContinuo` y nunca escri
 - **Sonido:** música por situación, efectos y sonificación en `docs/audio.md`. La sonificación ya implementada: rumor del agua ∝ Q_t + Q_v, zumbido eléctrico ∝ P y alerta si D > P, con `setTargetAtTime`.
 - **Retroalimentación:** vibración de cámara (2.º orden, ζ = 0,3, 12 Hz) ante desborde o descebe; oleaje del embalse (ζ = 0,2, 2 Hz) al abrir bruscamente una compuerta; opción "Reducir efectos".
 - **Pruebas y entrega:** `docs/pruebas_dia2.md`; prompts en `PROMPTS.md`.
+
+## 14. Rediseño de niveles
+
+Motivo: con la versión anterior los tres niveles se ganaban **sin tocar nada** a los 10 s, porque empezaban en el equilibrio (V = 30, u_t = 0,44, P = 47,4 MW) y ese estado ya cumplía la calibración antes de cualquier perturbación (tormenta a los 15 s, primer escalón de demanda a los 20 s).
+
+Cambios (detalle y números en `docs/niveles.md`):
+
+- **Código:** `src/juego/mecanicasNivel.js` reúne las reglas de cada nivel (etapas, fases, pronóstico, tronco, avería, barrios, criterio final) como funciones puras; `JuegoScene` solo las aplica. El modelo (`src/modelo/`) no cambió.
+- **Prueba:** `tests/niveles.test.js` comprueba que ningún nivel se gana con la consigna inicial fija y que un jugador razonable aprueba los tres, con la simulación sin interfaz `analisis/simular_niveles.mjs` (mismo orden que `JuegoScene.update()`).
+- **Línea base:** `tests/regresion.test.js` sigue comparando el **modelo** con `docs/niveles_linea_base.json` (antes del día 2) y compara los **niveles** con `docs/niveles_linea_base_v2.json` (rediseño), que se regenera con `analisis/generar_linea_base_niveles.mjs` solo cuando se cambian los niveles a propósito.

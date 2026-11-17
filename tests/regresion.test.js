@@ -5,10 +5,14 @@
  *    integrarDt y RK4 (h = 1/120 s), a 60 FPS y a 15 FPS (CPU ralentizada 4x), y compara
  *    con docs/linea_base_escalon.csv por métricas: valor final (< 0,5 %), tiempo de subida
  *    10-90 % (< 2 %) y sobreimpulso (< 1 punto porcentual). No compara punto a punto.
- * 2. Comprueba que los parámetros del modelo y de los niveles no cambiaron respecto a la
- *    "Versión estable antes del día 2" (docs/niveles_linea_base.json).
+ * 2. Comprueba que los parámetros del MODELO no cambiaron respecto a la "Versión estable
+ *    antes del día 2" (docs/niveles_linea_base.json, que se conserva como registro).
+ * 3. Comprueba que NIVEL1/2/3 coinciden con la línea base del rediseño de niveles
+ *    (docs/niveles_linea_base_v2.json). El rediseño cambió los niveles a propósito; la
+ *    línea base se regenera solo con analisis/generar_linea_base_niveles.mjs y junto con
+ *    docs/niveles.md.
  *
- * El arte y el sonido del día 2 solo pueden LEER el modelo: si esta prueba falla, algo
+ * El arte y el sonido solo pueden LEER el modelo: si esta prueba falla, algo
  * está escribiendo en src/modelo/ o en src/config/constantes.js.
  */
 
@@ -73,11 +77,19 @@ describe('Regresión del modelo (día 2)', () => {
     });
   }
 
-  test('los parámetros del modelo y de los niveles no cambiaron', () => {
-    const esperado = JSON.parse(readFileSync(join(DOCS, 'niveles_linea_base.json'), 'utf-8'));
+  test('los parámetros del modelo no cambiaron (línea base antes del día 2)', () => {
+    const base = JSON.parse(readFileSync(join(DOCS, 'niveles_linea_base.json'), 'utf-8'));
+    const claves = ['MODELO', 'HIDRO', 'TIEMPO', 'EQUILIBRIO', 'LIMITES', 'INTEGRADOR', 'ACTUADORES'];
+    const esperado = Object.fromEntries(claves.map((k) => [k, base[k]]));
     const actual = JSON.parse(JSON.stringify({
-      MODELO, HIDRO, TIEMPO, EQUILIBRIO, LIMITES, INTEGRADOR, ACTUADORES, NIVEL1, NIVEL2, NIVEL3,
+      MODELO, HIDRO, TIEMPO, EQUILIBRIO, LIMITES, INTEGRADOR, ACTUADORES,
     }));
+    expect(actual).toEqual(esperado);
+  });
+
+  test('los niveles coinciden con la línea base del rediseño', () => {
+    const esperado = JSON.parse(readFileSync(join(DOCS, 'niveles_linea_base_v2.json'), 'utf-8'));
+    const actual = JSON.parse(JSON.stringify({ NIVEL1, NIVEL2, NIVEL3 }));
     expect(actual).toEqual(esperado);
   });
 });

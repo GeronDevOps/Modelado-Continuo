@@ -2,9 +2,14 @@
  * ResultadosScene.js
  * Pantalla final con métricas de la partida, gráficas completas
  * y exportación CSV. Incluye texto educativo.
+ *
+ * Criterios mostrados (ver docs/niveles.md):
+ *   N1: 10 s continuos calibrados (el tiempo que tardó es informativo).
+ *   N2: 10 s continuos calibrados en la fase de recuperación (t ≥ 90 s) sin desborde.
+ *   N3: turno completo sin desborde/descebe, RMSE(P − D_activa) ≤ 8 MW y ENS ≤ 12 %.
  */
 
-import { COLORES, LIMITES, EQUILIBRIO } from '../config/constantes.js';
+import { COLORES, NIVEL3 } from '../config/constantes.js';
 import { guardarResultado } from '../config/progreso.js';
 
 export class ResultadosScene extends Phaser.Scene {
@@ -40,15 +45,13 @@ export class ResultadosScene extends Phaser.Scene {
     this.add.rectangle(cx, 36, 1280, 70, 0x0d0d0d).setStrokeStyle(0);
     this.add.rectangle(cx, 71, 1280, 2, bannerColor, 0.5);
 
-    this.add.text(cx, 18, d.exito ? `▲  NIVEL COMPLETADO — NIVEL ${d.nivel}  ▲` : (d.desborde ? '▼  PRESA DESBORDADA  ▼' : (d.descebe ? '▼  DESCEBE: EMBALSE VACÍO  ▼' : '▼  TURNO FALLIDO (120s AGOTADOS)  ▼')), {
+    this.add.text(cx, 18, d.exito ? `▲  NIVEL COMPLETADO — NIVEL ${d.nivel}  ▲` : (d.desborde ? '▼  PRESA DESBORDADA  ▼' : (d.descebe ? '▼  DESCEBE: EMBALSE VACÍO  ▼' : `▼  TURNO FALLIDO (${this._motivoCorto(d)})  ▼`)), {
       fontSize: '22px', fontFamily: 'Courier New, monospace',
       color: d.exito ? '#52b788' : '#e63946',
       align: 'center',
     }).setOrigin(0.5);
 
-    this.add.text(cx, 52, d.exito
-      ? '¡Nivel completado! Mantuviste el sistema calibrado durante 10 segundos continuos.'
-      : 'No alcanzaste los 10s de calibración continua dentro de los 2 minutos del turno.',
+    this.add.text(cx, 52, this._subtitulo(d),
       {
         fontSize: '12px', fontFamily: 'Courier New', color: '#666666', align: 'center',
       }
@@ -58,7 +61,7 @@ export class ResultadosScene extends Phaser.Scene {
     this._construirMetricas(d);
 
     // ─── GRÁFICA COMPLETA ─────────────────────────────────────────────────────
-    this._construirGraficaCompleta(d.registros);
+    this._construirGraficaCompleta(d.registros, d.duracion ?? 120);
 
     // ─── TEXTO EDUCATIVO ──────────────────────────────────────────────────────
     this._construirTextoEducativo();
@@ -67,59 +70,75 @@ export class ResultadosScene extends Phaser.Scene {
     this._construirBotones(d);
   }
 
+  /** Texto corto del motivo de falla para el banner. */
+  _motivoCorto(d) {
+    return {
+      tiempo: `${d.duracion ?? 120}s AGOTADOS`,
+      rmse: `RMSE > ${NIVEL3.rmse_max_MW} MW`,
+      ens: 'DEMASIADOS APAGONES',
+      incompleto: 'TURNO INCOMPLETO',
+    }[d.motivo] ?? `${d.duracion ?? 120}s AGOTADOS`;
+  }
+
+  /** Frase bajo el banner según nivel y resultado. */
+  _subtitulo(d) {
+    if (d.nivel === 3) {
+      return d.exito
+        ? '¡Turno completo! Seguiste la demanda y cortaste solo lo necesario.'
+        : (d.motivo === 'ens'
+          ? 'Dejaste demasiada energía sin suministrar: corta menos tiempo o elige otro barrio.'
+          : 'Sobrevive el turno completo siguiendo la demanda (RMSE ≤ 8 MW).');
+    }
+    if (d.nivel === 2) {
+      return d.exito
+        ? '¡Represa a salvo! Sobreviviste a la tormenta y recuperaste la calibración.'
+        : `En la RECUPERACIÓN (t ≥ ${d.inicioCalibracion ?? 90} s) necesitas 10 s continuos calibrados.`;
+    }
+    return d.exito
+      ? `¡Tutorial completado en ${(d.tiempoCompletado ?? d.tiempoJugado).toFixed(1)} s! Llenaste el embalse y calibraste 10 s.`
+      : 'Llena el embalse cerrando turbinas y luego ábrelas hasta 47,4 MW: sostenlo 10 s.';
+  }
+
   _construirMetricas(d) {
     const metricaX = 30;
     const metricaY = 88;
+    const informativo = (label, valor) => ({ label, valor, ok: true, req: 'informativo' });
     const items = d.nivel === 3 ? [
       {
-        label: 'RMSE POTENCIA (vs demanda alcanzable)',
+        label: 'TURNO COMPLETO SIN DESBORDE NI DESCEBE',
+        valor: `${d.tiempoJugado.toFixed(0)} / ${d.duracion} s`,
+        ok: !d.desborde && !d.descebe && d.tiempoJugado >= d.duracion - 1e-6,
+        req: `${d.duracion} s · 5 < V < 50 hm³`,
+      },
+      {
+        label: 'RMSE POTENCIA (vs demanda activa)',
         valor: `${d.rmse.toFixed(2)} MW`,
-        ok: d.rmse <= 8.0,
-        req: '≤ 8.0 MW',
+        ok: d.rmse <= NIVEL3.rmse_max_MW,
+        req: `≤ ${NIVEL3.rmse_max_MW.toFixed(1)} MW`,
       },
       {
-        label: 'DESVIACIÓN MÁXIMA DE V RESPECTO A V0',
-        valor: `${d.desvMax.toFixed(2)} hm³`,
-        ok: true,
-        req: 'informativo',
+        label: 'ENERGÍA NO SUMINISTRADA (ponderada)',
+        valor: `${((d.ens ?? 0) * 100).toFixed(1)} %`,
+        ok: (d.ens ?? 0) <= NIVEL3.ens_max,
+        req: `≤ ${(NIVEL3.ens_max * 100).toFixed(0)} % (industria ×1, casas ×1.5)`,
       },
-      {
-        label: 'CALIBRACIÓN CONTINUA ALCANZADA',
-        valor: `${d.tiempoBandaMax.toFixed(1)} s`,
-        ok: d.tiempoBandaMax >= (d.metaCalibracion ?? 10),
-        req: '≥ 10 s continuos',
-      },
-      {
-        label: 'RANGO DE V  (sin descebe ni desborde)',
-        valor: `${d.Vmin.toFixed(1)} – ${d.Vmax.toFixed(1)} hm³`,
-        ok: !d.desborde && !d.descebe,
-        req: '5 < V < 50 hm³',
-      },
+      informativo('RANGO DE V · TIEMPO CON DESLASTRE',
+        `${d.Vmin.toFixed(1)}–${d.Vmax.toFixed(1)} · ${(d.tiempoDeslastre ?? 0).toFixed(0)} s`),
     ] : d.nivel === 2 ? [
       {
-        label: 'CALIBRACIÓN CONTINUA ALCANZADA',
+        label: 'CALIBRACIÓN EN LA RECUPERACIÓN',
         valor: `${d.tiempoBandaMax.toFixed(1)} s`,
         ok: d.tiempoBandaMax >= (d.metaCalibracion ?? 10),
-        req: '≥ 10 s continuos',
+        req: `≥ 10 s continuos desde t = ${d.inicioCalibracion ?? 90} s`,
       },
       {
         label: 'VOLUMEN MÁXIMO ALCANZADO',
         valor: `${d.Vmax.toFixed(2)} hm³`,
-        ok: !d.desborde && d.tiempoRebosamiento === 0,
-        req: '≤ 45 hm³',
+        ok: !d.desborde,
+        req: `< 50 hm³ (alarma en 45: ${d.tiempoRebosamiento.toFixed(1)} s)`,
       },
-      {
-        label: 'ERROR MEDIO POTENCIA',
-        valor: `${(d.errorPMedio * 100).toFixed(2)} %`,
-        ok: d.errorPMedio <= 0.15,
-        req: '≤ 15%',
-      },
-      {
-        label: 'NIVEL FINAL EMBALSE',
-        valor: `${d.sistema.V_final.toFixed(2)} hm³`,
-        ok: Math.abs(d.sistema.V_final - LIMITES.V_objetivo) <= 5,
-        req: '30 ± 5 hm³',
-      },
+      informativo('ERROR MEDIO POTENCIA', `${(d.errorPMedio * 100).toFixed(2)} %`),
+      informativo('NIVEL FINAL EMBALSE', `${d.sistema.V_final.toFixed(2)} hm³`),
     ] : [
       {
         label: 'CALIBRACIÓN CONTINUA ALCANZADA',
@@ -127,24 +146,10 @@ export class ResultadosScene extends Phaser.Scene {
         ok: d.tiempoBandaMax >= (d.metaCalibracion ?? 10),
         req: '≥ 10 s continuos',
       },
-      {
-        label: 'ERROR MEDIO POTENCIA',
-        valor: `${(d.errorPMedio * 100).toFixed(2)} %`,
-        ok: d.errorPMedio <= 0.05,
-        req: '≤ 5%',
-      },
-      {
-        label: 'NIVEL FINAL EMBALSE',
-        valor: `${d.sistema.V_final.toFixed(2)} hm³`,
-        ok: d.sistema.V_final >= LIMITES.V_min && d.sistema.V_final <= LIMITES.V_max,
-        req: '[5, 50] hm³',
-      },
-      {
-        label: 'POTENCIA FINAL GENERADA',
-        valor: `${d.sistema.P_final.toFixed(2)} MW`,
-        ok: true,
-        req: '~47.4 MW',
-      },
+      informativo('TIEMPO PARA COMPLETAR EL TUTORIAL',
+        d.tiempoCompletado !== null && d.tiempoCompletado !== undefined ? `${d.tiempoCompletado.toFixed(1)} s` : '—'),
+      informativo('ERROR MEDIO POTENCIA', `${(d.errorPMedio * 100).toFixed(2)} %`),
+      informativo('NIVEL FINAL EMBALSE', `${d.sistema.V_final.toFixed(2)} hm³`),
     ];
 
     items.forEach((item, i) => {
@@ -174,7 +179,7 @@ export class ResultadosScene extends Phaser.Scene {
     });
   }
 
-  _construirGraficaCompleta(registros) {
+  _construirGraficaCompleta(registros, duracion = 120) {
     if (!registros || registros.length < 2) return;
 
     const gx = 630;
@@ -186,7 +191,7 @@ export class ResultadosScene extends Phaser.Scene {
     // Panel de la gráfica
     this.add.rectangle(gx + gw / 2, gy + gh / 2, gw, gh, 0x0d0d0d)
       .setStrokeStyle(1, 0x222222);
-    this.add.text(gx + 4, gy + 4, 'REGISTRO COMPLETO DE LA PARTIDA (0–120 s)', {
+    this.add.text(gx + 4, gy + 4, `REGISTRO COMPLETO DE LA PARTIDA (0–${duracion} s)`, {
       fontSize: '9px', fontFamily: 'Courier New', color: '#444444',
     });
 
@@ -204,7 +209,7 @@ export class ResultadosScene extends Phaser.Scene {
     }
     g.strokePath();
 
-    const tMax = 120;
+    const tMax = duracion;
     const pMax = 160;
     const vMax = 60;
 
@@ -276,12 +281,12 @@ export class ResultadosScene extends Phaser.Scene {
     const texto = this.data_nivel.nivel === 3
       ? `Aquí perturbación y consigna cambian a la vez: Q_río(t) oscila y la\n` +
         `demanda sube en escalones. Como P = 2.45·H(V)·u_t, la potencia disponible\n` +
-        `depende del volumen almacenado: P_max(V) = 2.45·(20 + 0.8·V).\n\n` +
-        `Por eso la referencia es min(P_dem, P_max(V) + 5): nadie puede entregar\n` +
-        `más de lo que el embalse permite. El RMSE resume el error cuadrático medio.\n\n` +
-        `Con la ecuación dV/dt = Q_río − u_t − 2·u_v − 0.002·V, el volumen\n` +
-        `integra la diferencia entre lo que entra y lo que sale: anticiparse a la\n` +
-        `punta de demanda y a la crecida es control de lazo abierto + cerrado.`
+        `depende del volumen almacenado: P_max = 2.45·(20 + 0.8·V)·u_t,max.\n\n` +
+        `Guardar agua antes del pico sube H y la capacidad (el agua es un recurso).\n` +
+        `Con la avería u_t,max = 0.66 y ni con el embalse lleno alcanza: hay que\n` +
+        `DESLASTRAR un barrio. Cortar tiene costo (ENS ponderada), no cortar dispara\n` +
+        `el RMSE. Con dV/dt = Q_río − u_t − 2·u_v − 0.002·V, el volumen integra lo\n` +
+        `que entra menos lo que sale: anticiparse es control de lazo abierto + cerrado.`
       : this.data_nivel.nivel === 2
       ? `Una tormenta eleva el caudal del río Q_río(t): es una PERTURBACIÓN que no\n` +
         `controlas. Con las turbinas solas no alcanza: el vertedero u_v (ganancia\n` +
@@ -290,8 +295,11 @@ export class ResultadosScene extends Phaser.Scene {
         `Al abrir el vertedero baja V pero NO produce potencia: seguridad vs. energía.\n` +
         `Como P = 2.45·H(V)·u_t, un V alto sube la cabeza H y la potencia para el\n` +
         `mismo u_t: la planta realimenta su propio estado.\n\n` +
-        `Anticipar la crecida (feedforward) es mejor que reaccionar tarde (feedback).`
-      : `El embalse actúa como un sistema acumulador continuo de primer orden.\n` +
+        `Anticipar la crecida con el pronóstico (feedforward) es mejor que\n` +
+        `reaccionar tarde (feedback). Con el tronco el vertedero queda al 25 %:\n` +
+        `la saturación de un actuador obliga a usar el otro.`
+      : `Empezaste en V = 25 hm³ con P ≈ 20 MW: fuera del punto de operación.\n` +
+      `El embalse actúa como un sistema acumulador continuo de primer orden.\n` +
       `Al modificar u_t (apertura de turbinas), no fijas el nivel directamente,\n` +
       `sino la tasa de cambio dV/dt del volumen almacenado.\n\n` +
       `Ecuación de estado:  dV/dt = Q_río − u_t − 0.002·V\n` +
@@ -356,9 +364,12 @@ export class ResultadosScene extends Phaser.Scene {
   _exportarCSV(registros, nivel = 1) {
     if (!registros || registros.length === 0) return;
 
-    const encabezado = 't_s,V_hm3,H_m,ut,uv,Qrio,P_MW,Pdemanda_MW,Pref_MW';
+    // Pref_MW = demanda activa (sin barrios cortados); ut_max/uv_max = límites del instante
+    // (avería / tronco); cortados = barrios deslastrados separados por "+".
+    const encabezado = 't_s,V_hm3,H_m,ut,uv,Qrio,P_MW,Pdemanda_MW,Pref_MW,ut_max,uv_max,cortados';
     const filas = registros.map(r =>
-      `${r.t_s},${r.V_hm3},${r.H_m},${r.ut},${r.uv},${r.Qrio},${r.P_MW},${r.Pdemanda_MW},${r.Pref_MW ?? r.Pdemanda_MW}`
+      `${r.t_s},${r.V_hm3},${r.H_m},${r.ut},${r.uv},${r.Qrio},${r.P_MW},${r.Pdemanda_MW},${r.Pref_MW ?? r.Pdemanda_MW},` +
+      `${r.ut_max ?? ''},${r.uv_max ?? ''},${r.cortados ?? ''}`
     );
     const csv = [encabezado, ...filas].join('\n');
 

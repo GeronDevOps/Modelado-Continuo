@@ -79,36 +79,54 @@ export const CAMARA = {
   modelo_url: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
 };
 
-// ─── NIVEL 1 ──────────────────────────────────────────────────────────────────
+// ─── NIVEL 1: TURNO TRANQUILO (tutorial) ──────────────────────────────────────
+// Arranca FUERA del equilibrio (V0 = 25 hm³, u_t = 0,20 → P ≈ 19,6 MW): el jugador
+// tiene que llenar el embalse cerrando turbinas y luego abrirlas hasta 47,4 MW.
+// Sin tocar nada nunca se calibra (V sube hacia 50 con P ≈ 22 MW).
 export const NIVEL1 = {
   id: 1,
   nombre: 'TURNO TRANQUILO',
-  duracion_s: 120,           // 2 minutos máximos si no se alcanzan los 10 s calibrados
+  modo: 'calibracion',       // gana con 10 s continuos calibrados
+  duracion_s: 120,
+  V0: 25.0,                  // hm³ — por debajo de la banda [27, 33]
+  ut0: 0.20,                 // apertura inicial de turbinas
   Qrio: 0.5,                 // hm³/h constante
   P_demanda: 47.4,           // MW constante
   uv_habilitado: false,
+  inicio_calibracion_s: 0,
   tiempo_banda_minimo: 10,   // 10 s continuos calibrados para completar el nivel
   error_P_max: 0.05,         // ±5% error de potencia permitido
-  instruccion: 'OBJETIVO (10s): Mantén el embalse en 30 ± 3 hm³ y la potencia en 47.4 MW (±5%).',
+  instruccion: 'TUTORIAL: llena el embalse hasta 30 ± 3 hm³, entrega 47.4 MW (±5%) y sostenlo 10 s.',
 };
 
 // ─── NIVEL 2: TORMENTA CORDILLERANA ───────────────────────────────────────────
-// Caudal del río: base 0.5 hm³/h + pulso sin² de amplitud 2.4 entre t=15 s y t=105 s.
-// Sin vertedero el volumen superaría 45 hm³ (rebosamiento); el vertedero es obligatorio.
+// Caudal del río: base 0.5 hm³/h + pulso sin² de amplitud 2.5 entre t=15 s y t=105 s.
+// Fases: CALMA (0–5) → ALERTA (5–15, pronóstico) → TORMENTA (15–90) → RECUPERACIÓN (90–150).
+// La calibración SOLO cuenta en la recuperación: hay que sobrevivir y devolver la planta a 30 hm³.
+// Evento sorpresa: un tronco bloquea el vertedero (u_v ≤ 0,25) entre t=45 s y t=53 s.
 export const NIVEL2 = {
   id: 2,
   nombre: 'TORMENTA CORDILLERANA',
-  duracion_s: 120,           // 2 minutos máximos si falla en calibrar 10 s
+  modo: 'calibracion',
+  duracion_s: 150,           // 120 s de tormenta + 30 s extra de recuperación
+  V0: 30.0,
+  ut0: 0.44,
   Qrio: 0.5,
   tormenta_inicio_s: 15,
   tormenta_fin_s: 105,
   tormenta_amplitud: 2.5,
+  alerta_inicio_s: 5,        // pronóstico: aviso 10 s antes de la tormenta
+  inicio_calibracion_s: 90,  // inicio de la fase de RECUPERACIÓN
+  pronostico_s: 10,          // horizonte del pronóstico de Q_río
+  tronco_inicio_s: 45,
+  tronco_fin_s: 53,
+  tronco_uv_max: 0.25,       // apertura máxima del vertedero con el tronco atascado
   P_demanda: 47.4,
   uv_habilitado: true,
-  tiempo_banda_minimo: 10,   // 10 s continuos calibrados para completar el nivel
+  tiempo_banda_minimo: 10,   // 10 s continuos calibrados (en la recuperación) para completar
   error_P_max: 0.15,         // 15% error de potencia permitido
-  V_final_tolerancia: 5.0,   // |V_final − 30| ≤ 5 hm³
-  instruccion: 'OBJETIVO (10s): Evita rebosamiento (≤45 hm³) usando el vertedero y mantén V en 30 ± 3 hm³ y P (±15%).',
+  V_final_tolerancia: 5.0,   // |V_final − 30| ≤ 5 hm³ (informativo)
+  instruccion: 'OBJETIVO: sobrevive a la tormenta (V < 50) y desde t = 90 s calibra 10 s: V 30 ± 3, P ±15%.',
 };
 
 /**
@@ -125,23 +143,38 @@ export function caudalNivel2(t) {
 
 // ─── NIVEL 3: HORA PICO Y DESHIELO PATAGÓNICO ─────────────────────────────────
 // Caudal oscilante entre 0.5 y 2.5 hm³/h (periodo 40 s) y demanda en rampa
-// escalonada entre 30 y 120 MW. El RMSE se mide contra la demanda alcanzable:
-//   P_ref(t) = min(P_demanda(t), P_max(V) + 5 MW)
+// escalonada entre 30 y 120 MW, repartida en tres barrios. Se juega el turno completo
+// (supervivencia): no termina antes. Si la planta no alcanza, el jugador DESLASTRA un
+// barrio (deja sin luz a la industria o a las casas); el hospital nunca se corta.
+//   D_activa(t) = suma de los barrios con luz;  RMSE = rms(P − D_activa)
+//   ENS ponderada = ∫ Σ peso·P_cortada dt / ∫ D_total dt
+// Avería: entre t=62 s y t=77 s una turbina sale de servicio (u_t ≤ 0,66).
 export const NIVEL3 = {
   id: 3,
   nombre: 'HORA PICO Y DESHIELO',
-  duracion_s: 120,           // 2 minutos máximos si falla en calibrar 10 s
+  modo: 'supervivencia',     // se juega el turno completo y se evalúa al final
+  duracion_s: 120,
+  V0: 30.0,
+  ut0: 0.44,
   Qrio: 0.5,                 // valor inicial (la función caudalNivel3 lo hace oscilar)
   periodo_Q_s: 40,
   demanda_escalones_MW: [45, 70, 100, 120, 75, 30],
   escalon_s: 20,             // cada escalón dura 20 s
   rampa_s: 4,                // transición lineal entre escalones
-  margen_Pmax_MW: 5,         // margen sobre P_max(V) para la demanda de referencia
   P_demanda: 45,             // demanda inicial
   uv_habilitado: true,
-  tiempo_banda_minimo: 10,   // 10 s continuos calibrados para completar el nivel
+  sectores: [
+    { id: 'hospital',  nombre: 'HOSPITAL',  fijo_MW: 15, cortable: false, peso: 0 },
+    { id: 'industria', nombre: 'INDUSTRIA', fraccion: 0.45, cortable: true, tecla: 'ONE', etiquetaTecla: '1', peso: 1.0 },
+    { id: 'casas',     nombre: 'CASAS',     fraccion: 0.55, cortable: true, tecla: 'TWO', etiquetaTecla: '2', peso: 1.5 },
+  ],
+  averia_inicio_s: 62,
+  averia_fin_s: 77,
+  averia_ut_max: 0.66,       // 2 de 3 turbinas disponibles
+  aviso_averia_s: 3,         // aviso previo de la avería
   rmse_max_MW: 8.0,
-  instruccion: 'OBJETIVO (10s): Sigue la rampa de demanda (error ≤ 8 MW) con el embalse en 30 ± 3 hm³ sin desbordar.',
+  ens_max: 0.12,             // energía no suministrada ponderada ≤ 12 % de la demandada
+  instruccion: 'OBJETIVO: aguanta el turno con RMSE ≤ 8 MW sin desbordar. Sin capacidad: corta un barrio [1]/[2].',
 };
 
 /** Caudal oscilante del Nivel 3 [hm³/h]: 0.5 en t=0, pico 2.5 a mitad de periodo. */
@@ -149,7 +182,7 @@ export function caudalNivel3(t) {
   return 1.5 - Math.cos(2 * Math.PI * t / NIVEL3.periodo_Q_s);
 }
 
-/** Demanda eléctrica del Nivel 3 [MW]: escalones con rampa lineal. */
+/** Demanda eléctrica total del Nivel 3 [MW]: escalones con rampa lineal. */
 export function demandaNivel3(t) {
   const { demanda_escalones_MW: E, escalon_s, rampa_s } = NIVEL3;
   const k = Math.min(E.length - 1, Math.max(0, Math.floor(t / escalon_s)));
@@ -159,6 +192,20 @@ export function demandaNivel3(t) {
   return E[k - 1] + (E[k] - E[k - 1]) * (dentro / rampa_s);
 }
 
+/**
+ * Reparte la demanda total del Nivel 3 entre los barrios [MW].
+ * El hospital es fijo; el resto se divide según `fraccion`.
+ * @param {number} D - Demanda total [MW]
+ * @returns {Object<string, number>} p. ej. { hospital: 15, industria: 13.5, casas: 16.5 }
+ */
+export function demandaPorSector(D) {
+  const fijo = NIVEL3.sectores.reduce((a, s) => a + (s.fijo_MW ?? 0), 0);
+  const resto = Math.max(0, D - fijo);
+  const out = {};
+  for (const s of NIVEL3.sectores) out[s.id] = s.fijo_MW ?? resto * s.fraccion;
+  return out;
+}
+
 /** Caudal del río según el nivel. */
 export function caudalPorNivel(nivel, t) {
   if (nivel === 2) return caudalNivel2(t);
@@ -166,7 +213,7 @@ export function caudalPorNivel(nivel, t) {
   return NIVEL1.Qrio;
 }
 
-/** Demanda eléctrica cruda según el nivel [MW]. */
+/** Demanda eléctrica total según el nivel [MW] (sin descontar barrios cortados). */
 export function demandaPorNivel(nivel, t) {
   if (nivel === 3) return demandaNivel3(t);
   return nivel === 2 ? NIVEL2.P_demanda : NIVEL1.P_demanda;

@@ -1,15 +1,20 @@
 /**
  * fase3.test.js
- * Factibilidad del Nivel 3 con la demanda de referencia acotada
- * P_ref = min(P_demanda, P_max(V) + 5 MW).
+ * Perfiles y factibilidad del Nivel 3 rediseñado: demanda por barrios con deslastre,
+ * avería de una turbina y criterio de turno completo (RMSE ≤ 8 MW y ENS ≤ 12 %).
  */
 
 import { describe, test, expect } from 'vitest';
-import { SistemaContinuo, saturar, demandaEfectiva, calcularPmax, calcularH } from '../src/modelo/SistemaContinuo.js';
-import { rk4, H_PASO } from '../src/modelo/integradores.js';
+import { demandaEfectiva, calcularPmax } from '../src/modelo/SistemaContinuo.js';
 import {
-  NIVEL3, EQUILIBRIO, LIMITES, ACTUADORES, HIDRO, caudalNivel3, demandaNivel3,
+  NIVEL3, LIMITES, caudalNivel3, demandaNivel3, demandaPorSector,
 } from '../src/config/constantes.js';
+import {
+  demandaActiva, capacidadDisponible, volumenNecesario, utMaximo, averiaActiva, avisoAveria,
+} from '../src/juego/mecanicasNivel.js';
+import {
+  simularNivel, quieto, jugadorRazonable,
+} from '../documentacion_simjam_represa/analisis/simular_niveles.mjs';
 
 describe('Perfiles del Nivel 3', () => {
   test('caudal oscila entre 0.5 y 2.5 hm³/h', () => {
@@ -37,61 +42,80 @@ describe('Perfiles del Nivel 3', () => {
   });
 });
 
-describe('Demanda efectiva', () => {
-  test('se acota por P_max(V) + 5', () => {
-    expect(demandaEfectiva(120, 30)).toBeCloseTo(calcularPmax(30) + 5, 9);
-    expect(demandaEfectiva(40, 30)).toBe(40);
+describe('Barrios y deslastre', () => {
+  test('los barrios suman la demanda total y el hospital es fijo', () => {
+    for (const D of [30, 45, 70, 120]) {
+      const s = demandaPorSector(D);
+      expect(s.hospital + s.industria + s.casas).toBeCloseTo(D, 9);
+      expect(s.hospital).toBe(15);
+    }
   });
-  test('con embalse bajo la referencia cae por debajo de la demanda cruda', () => {
-    expect(demandaEfectiva(120, 5)).toBeLessThan(120);
+
+  test('cortar un barrio baja la demanda activa y suma ENS ponderada', () => {
+    const t = 70; // escalón de 120 MW
+    const sin = demandaActiva(3, t);
+    const ind = demandaActiva(3, t, new Set(['industria']));
+    const cas = demandaActiva(3, t, new Set(['casas']));
+    expect(sin.activa).toBe(120);
+    expect(ind.activa).toBeCloseTo(120 - 0.45 * 105, 9);
+    expect(ind.cortadaPonderada).toBeCloseTo(1.0 * 0.45 * 105, 9);
+    expect(cas.cortadaPonderada).toBeCloseTo(1.5 * 0.55 * 105, 9);
+  });
+
+  test('el hospital no se puede cortar', () => {
+    const d = demandaActiva(3, 70, new Set(['hospital']));
+    expect(d.activa).toBe(120);
+    expect(d.cortada).toBe(0);
   });
 });
 
-describe('Factibilidad del Nivel 3', () => {
-  /**
-   * @param {number} adelanto_s - >0 anticipa la demanda, <0 simula retardo humano
-   */
-  function jugar(adelanto_s) {
-    const s = new SistemaContinuo(EQUILIBRIO.V0, EQUILIBRIO.ut0, 0, NIVEL3.Qrio);
-    const dt = 1 / 60;
-    let sumSq = 0, n = 0, Vmax = s.V, Vmin = s.V;
-    for (let t = 0; t < NIVEL3.duracion_s; t += dt) {
-      s.Qrio = caudalNivel3(t);
-      // Jugador razonable: apunta a la demanda alcanzable y abre el vertedero si V > 36
-      const pObj = demandaEfectiva(demandaNivel3(t + adelanto_s), s.V, NIVEL3.margen_Pmax_MW);
-      const utObj = saturar(pObj / (HIDRO.eta * calcularH(s.V)), 0, 1);
-      const uvObj = s.V > 36 ? 1 : 0;
-      const vT = ACTUADORES.ut_velocidad_max * dt;
-      const vV = ACTUADORES.uv_velocidad_max * dt;
-      s.ut = saturar(s.ut + saturar(utObj - s.ut, -vT, vT), 0, 1);
-      s.uv = saturar(s.uv + saturar(uvObj - s.uv, -vV, vV), 0, 1);
-      for (let k = 0; k < 2; k++) s.paso(rk4, H_PASO);
-      const pRef = demandaEfectiva(demandaNivel3(t), s.V, NIVEL3.margen_Pmax_MW);
-      sumSq += (s.P - pRef) ** 2; n++;
-      Vmax = Math.max(Vmax, s.V); Vmin = Math.min(Vmin, s.V);
-    }
-    return { rmse: Math.sqrt(sumSq / n), Vmax, Vmin };
-  }
-
-  test('seguimiento directo: RMSE ≤ 8 MW sin desborde ni descebe', () => {
-    const { rmse, Vmax, Vmin } = jugar(0);
-    expect(rmse).toBeLessThanOrEqual(NIVEL3.rmse_max_MW);
-    expect(Vmax).toBeLessThan(LIMITES.V_max);
-    expect(Vmin).toBeGreaterThan(LIMITES.V_min);
+describe('Avería y capacidad disponible', () => {
+  test('la avería limita u_t a 0,66 entre 62 y 77 s, con aviso de 3 s', () => {
+    expect(utMaximo(3, 61.9)).toBe(LIMITES.ut_max);
+    expect(utMaximo(3, 62)).toBe(NIVEL3.averia_ut_max);
+    expect(utMaximo(3, 77)).toBe(LIMITES.ut_max);
+    expect(averiaActiva(3, 70)).toBe(true);
+    expect(avisoAveria(3, 60)).toBeCloseTo(2, 9);
+    expect(avisoAveria(3, 50)).toBe(null);
+    expect(utMaximo(2, 70)).toBe(LIMITES.ut_max);          // solo en el Nivel 3
   });
 
-  test('con 2 s de retardo humano todavía es aprobable', () => {
-    expect(jugar(-2).rmse).toBeLessThanOrEqual(NIVEL3.rmse_max_MW);
+  test('con la avería ni el embalse lleno alcanza para 120 MW (hay que deslastrar)', () => {
+    expect(capacidadDisponible(3, 70, LIMITES.V_max)).toBeLessThan(120);
+    expect(volumenNecesario(3, 70, 120)).toBeGreaterThan(LIMITES.V_max);
   });
 
-  test('sin vertedero y sin reaccionar a Q_río el volumen deriva (el vertedero importa)', () => {
-    // Turbinas siguiendo la demanda pero vertedero cerrado: V sube más que con vertedero
-    const s = new SistemaContinuo(EQUILIBRIO.V0, EQUILIBRIO.ut0, 0, NIVEL3.Qrio);
-    for (let t = 0; t < NIVEL3.duracion_s; t += 1 / 60) {
-      s.Qrio = caudalNivel3(t);
-      s.ut = saturar(demandaEfectiva(demandaNivel3(t), s.V) / (HIDRO.eta * calcularH(s.V)), 0, 1);
-      for (let k = 0; k < 2; k++) s.paso(rk4, H_PASO);
-    }
-    expect(s.V).toBeGreaterThan(36.2);
+  test('sin avería, 120 MW requieren acumular V ≥ 36,2 hm³', () => {
+    expect(volumenNecesario(3, 85, 120)).toBeCloseTo(36.22, 1);
+    expect(capacidadDisponible(3, 85, 30)).toBeCloseTo(calcularPmax(30), 9);
+  });
+});
+
+describe('Factibilidad del Nivel 3 (simulación de JuegoScene sin interfaz)', () => {
+  test('sin tocar nada se falla', () => {
+    expect(simularNivel(3, quieto(3)).exito).toBe(false);
+  });
+
+  test('cortando la industria cuando falta capacidad se aprueba', () => {
+    const r = simularNivel(3, jugadorRazonable(3));
+    expect(r.exito).toBe(true);
+    expect(r.rmse).toBeLessThanOrEqual(NIVEL3.rmse_max_MW);
+    expect(r.ens).toBeLessThanOrEqual(NIVEL3.ens_max);
+  });
+
+  test('con 1 s de retardo humano todavía es aprobable', () => {
+    expect(simularNivel(3, jugadorRazonable(3, { retardo_s: 1 })).exito).toBe(true);
+  });
+
+  test('la decisión importa: cortar las casas excede la ENS y no cortar excede el RMSE', () => {
+    expect(simularNivel(3, jugadorRazonable(3, { cortar: 'casas' })).motivo).toBe('ens');
+    expect(simularNivel(3, jugadorRazonable(3, { cortar: 'ninguno' })).motivo).toBe('rmse');
+  });
+});
+
+describe('demandaEfectiva (utilidad del modelo, ya no la usa el Nivel 3)', () => {
+  test('se acota por P_max(V) + 5', () => {
+    expect(demandaEfectiva(120, 30)).toBeCloseTo(calcularPmax(30) + 5, 9);
+    expect(demandaEfectiva(40, 30)).toBe(40);
   });
 });

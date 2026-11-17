@@ -88,8 +88,12 @@ export function calcularPmax(V) {
 }
 
 /**
- * Demanda de referencia alcanzable (factibilidad del Nivel 3):
+ * Demanda de referencia alcanzable:
  *   P_ref = min(P_demanda, P_max(V) + margen)
+ *
+ * Nota: se usaba como "ajuste de factibilidad" del Nivel 3. Desde el rediseño de niveles
+ * el N3 ya no la usa (la demanda imposible se resuelve con el deslastre de barrios,
+ * ver src/juego/mecanicasNivel.js); se conserva como utilidad del modelo.
  *
  * @param {number} Pdem   - Demanda cruda [MW]
  * @param {number} V      - Volumen actual [hm³]

@@ -2,16 +2,22 @@
  * JuegoScene.js
  * Escena principal de juego — HMI estilo sala de control 90s.
  * Integra el modelo matemático continuo (SistemaContinuo + RK4)
- * con controles de teclado y visualización en tiempo real.
+ * con controles de teclado / cámara y visualización en tiempo real.
+ * Las reglas propias de cada nivel están en src/juego/mecanicasNivel.js.
  *
- * Nivel 1: Turno Tranquilo
- *   - V0=30 hm³, Qrío=0.5 hm³/h constante, P_demanda=47.4 MW
- *   - Duración: 120 s de juego
- *   - Criterio: ≥30 s en banda [27,33] hm³ + error P ≤ 5%
+ * Nivel 1: Turno Tranquilo (tutorial)
+ *   - V0 = 25 hm³, u_t0 = 0,20 (fuera del equilibrio), Q_río = 0,5, P_demanda = 47,4 MW
+ *   - Etapas guiadas: llenar el embalse → ajustar potencia → sostener; flecha junto a u_t
+ *   - Gana con 10 s continuos calibrados (V en 30 ± 3 y |error P| ≤ 5 %), máx. 120 s
  * Nivel 2: Tormenta Cordillerana
- *   - Caudal del río con pulso de tormenta; vertedero habilitado
- *   - Entrada por cámara: muñeca derecha (landmark 0) → u_t; puño izquierdo → u_v
- *   - Criterio: sin rebosamiento ni cavitación, |V_final − 30| ≤ 5 y error P medio ≤ 15%
+ *   - Fases CALMA → ALERTA → TORMENTA → RECUPERACIÓN, pronóstico de Q_río a +10 s
+ *   - Vertedero parcial ([E]/[Q] o puño en dos posiciones) y tronco que lo bloquea (45–53 s)
+ *   - La calibración (10 s, error P ≤ 15 %) solo cuenta desde t = 90 s; máx. 150 s
+ * Nivel 3: Hora Pico y Deshielo
+ *   - Demanda por barrios (hospital, industria, casas); deslastre con [1] y [2]
+ *   - Capacidad disponible P_max(V, u_t,max) y avería de una turbina (62–77 s, u_t ≤ 0,66)
+ *   - Turno completo de 120 s: RMSE(P − D_activa) ≤ 8 MW y ENS ponderada ≤ 12 %
+ * Niveles 2 y 3: V ≥ 50 (desborde) o V ≤ 5 (descebe) terminan el nivel.
  */
 
 import { SistemaContinuo } from '../modelo/SistemaContinuo.js';
@@ -20,12 +26,16 @@ import { saturar } from '../modelo/SistemaContinuo.js';
 import { GraficaTendencia } from '../ui/GraficaTendencia.js';
 import { GaugeHidraulico } from '../ui/GaugeHidraulico.js';
 import { SistemaAlarmas } from '../ui/Alarmas.js';
-import { aperturaDesdeAltura, calibracionValida } from '../entrada/gestos.js';
+import { aperturaDesdeAltura, calibracionValida, posicionVertederoPuno } from '../entrada/gestos.js';
 import {
-  COLORES, NIVEL1, NIVEL2, NIVEL3, LIMITES, EQUILIBRIO, ACTUADORES, TIEMPO, HIDRO,
-  caudalPorNivel, demandaPorNivel,
+  COLORES, NIVEL3, LIMITES, EQUILIBRIO, ACTUADORES, TIEMPO, HIDRO,
+  caudalPorNivel,
 } from '../config/constantes.js';
-import { demandaEfectiva } from '../modelo/SistemaContinuo.js';
+import {
+  configNivel, etapaNivel1, faseNivel2, pronosticoCaudal, troncoActivo, uvMaximo,
+  averiaActiva, avisoAveria, utMaximo, capacidadDisponible, volumenNecesario,
+  demandaActiva, calibracionHabilitada, estadoCalibracion, evaluarNivel,
+} from '../juego/mecanicasNivel.js';
 import { EfectosClima } from '../ui/Efectos.js';
 import { SonidoPlanta } from '../ui/Sonido.js';
 import { RegistroEscalon } from '../juego/modoEscalon.js';
@@ -36,7 +46,7 @@ export class JuegoScene extends Phaser.Scene {
   }
 
   init(data) {
-    this.nivelConfig = data?.nivel === 3 ? NIVEL3 : (data?.nivel === 2 ? NIVEL2 : NIVEL1);
+    this.nivelConfig = configNivel(data?.nivel);
     this.nivelId = this.nivelConfig.id;
 
     // Entrada por cámara solo si está lista y calibrada
@@ -57,15 +67,19 @@ export class JuegoScene extends Phaser.Scene {
 
   create() {
     // ─── MODELO ───────────────────────────────────────────────────────────────
-    this.sistema = new SistemaContinuo(
-      EQUILIBRIO.V0,
-      EQUILIBRIO.ut0,
-      0.0,
-      this.nivelConfig.Qrio
-    );
+    // Cada nivel define su estado inicial (el N1 arranca fuera del equilibrio). El ensayo
+    // de escalón (?control=escalon) usa siempre el punto de operación de la línea base.
+    const V0 = this.escalon ? EQUILIBRIO.V0 : this.nivelConfig.V0;
+    const ut0 = this.escalon ? EQUILIBRIO.ut0 : this.nivelConfig.ut0;
+    this.V0 = V0;
+    this.sistema = new SistemaContinuo(V0, ut0, 0.0, this.nivelConfig.Qrio);
     this.sistema.Qrio = this.nivelConfig.Qrio;
-    this.utObjetivo = EQUILIBRIO.ut0;   // Consigna de la compuerta (la compuerta la sigue con velocidad limitada)
+    this.utObjetivo = ut0;              // Consigna de la compuerta (la compuerta la sigue con velocidad limitada)
     this.uvObjetivo = 0;
+    this.uvConsigna = 0;                // Posición fija del vertedero elegida con [E]/[Q]
+    this.cortados = new Set();          // Barrios sin luz (deslastre, Nivel 3)
+    this.faseActual = null;             // Fase del N2 (para anunciar los cambios)
+    this.eventosVistos = new Set();     // Banners de eventos ya mostrados
 
     // ─── ESTADO DEL JUEGO ─────────────────────────────────────────────────────
     this.tiempoJuego = 0;               // s de juego transcurridos
@@ -83,14 +97,18 @@ export class JuegoScene extends Phaser.Scene {
     this.muestrasP = 0;
     this.tiempoRebosamiento = 0;        // s con V > V_alarma_alta
     this.tiempoCavitacion = 0;          // s con V < V_alarma_baja
-    this.Vmax = EQUILIBRIO.V0;
-    this.Vmin = EQUILIBRIO.V0;
+    this.Vmax = V0;
+    this.Vmin = V0;
     this.desborde = false;
     this.descebe = false;
     this.acumSqErrP = 0;                // ∫(P − P_ref)² dt  [MW²·s]
     this.tiempoEnBandaTotal = 0;        // s totales en la banda de V
     this.desvMax = 0;                   // máx |V − V0|
     this.intensidadTormenta = 0;
+    this.ensNum = 0;                    // ∫ Σ peso·P_cortada dt  [MW·s]  (Nivel 3)
+    this.ensDen = 0;                    // ∫ D_total dt            [MW·s]
+    this.tiempoDeslastre = 0;           // s con algún barrio cortado
+    this.tiempoCompletado = null;       // instante en que se completó la calibración
 
     // Historial para CSV final
     this.registros = [];
@@ -162,11 +180,71 @@ export class JuegoScene extends Phaser.Scene {
     // ─── BARRA DE PROGRESO DE TIEMPO ──────────────────────────────────────────
     this._construirBarraTiempo();
 
+    // ─── PANEL PROPIO DEL NIVEL (etapas, fases/pronóstico o barrios) ──────────
+    this._construirPanelNivel();
+    this._construirBanner();
+
     // ─── DEBUG OVERLAY ────────────────────────────────────────────────────────
     this._construirDebug();
 
     // ─── VISTA PREVIA DE CÁMARA (si se usa) ───────────────────────────────────
     if (this.usarCamara) this._construirPreviewCamara();
+  }
+
+  /**
+   * Panel con la mecánica propia de cada nivel, arriba a la izquierda del diagrama:
+   *   N1 etapas del tutorial · N2 fase + pronóstico · N3 barrios + capacidad.
+   */
+  _construirPanelNivel() {
+    const x = 18, y = 118, w = 300, h = 96;
+    const titulos = { 1: 'TUTORIAL', 2: 'PARTE METEOROLÓGICO', 3: 'DESPACHO DE CARGA' };
+    this.add.rectangle(x + w / 2, y + h / 2, w, h, 0x0a141e, 0.88)
+      .setStrokeStyle(1, COLORES.borde_panel).setDepth(8);
+    this.add.text(x + 6, y + 4, titulos[this.nivelId], {
+      fontSize: '9px', fontFamily: 'Courier New', color: '#666666',
+    }).setDepth(9);
+    this.textoPanelNivel = this.add.text(x + 6, y + 18, '', {
+      fontSize: '10px', fontFamily: 'Courier New', color: '#cccccc', lineSpacing: 2,
+      wordWrap: { width: w - 12 },
+    }).setDepth(9);
+
+    if (this.nivelId === 1) {
+      // Flecha que indica hacia dónde mover u_t (junto a la barra de apertura)
+      this.flechaTutorial = this.add.text(304, 611, '', {
+        fontSize: '13px', fontFamily: 'Courier New', color: '#f4d35e', fontStyle: 'bold',
+      }).setOrigin(0, 0.5).setDepth(10);
+    }
+  }
+
+  /** Banner central para anunciar fases y eventos. */
+  _construirBanner() {
+    this.bannerFondo = this.add.rectangle(330, 250, 560, 46, 0x000000, 0.8)
+      .setStrokeStyle(2, COLORES.linea_Pdem).setDepth(25).setAlpha(0);
+    this.bannerTexto = this.add.text(330, 250, '', {
+      fontSize: '16px', fontFamily: 'Courier New, monospace', color: '#f4d35e',
+      align: 'center', fontStyle: 'bold', wordWrap: { width: 540 },
+    }).setOrigin(0.5).setDepth(26).setAlpha(0);
+  }
+
+  /** Muestra un banner unos segundos (no bloquea el juego). */
+  _mostrarBanner(texto, color = '#f4d35e') {
+    if (this.escalon) return;
+    const c = Phaser.Display.Color.HexStringToColor(color).color;
+    this.tweens.killTweensOf([this.bannerFondo, this.bannerTexto]);
+    this.bannerTexto.setText(texto).setColor(color);
+    this.bannerFondo.setStrokeStyle(2, c);
+    this.bannerFondo.setAlpha(1); this.bannerTexto.setAlpha(1);
+    this.tweens.add({
+      targets: [this.bannerFondo, this.bannerTexto], alpha: 0,
+      delay: 2600, duration: 600,
+    });
+  }
+
+  /** Anuncia una sola vez cada evento (clave única). */
+  _evento(clave, texto, color) {
+    if (this.eventosVistos.has(clave)) return;
+    this.eventosVistos.add(clave);
+    this._mostrarBanner(texto, color);
   }
 
   _construirPreviewCamara() {
@@ -394,7 +472,9 @@ export class JuegoScene extends Phaser.Scene {
       if (rng.frac() < 0.25) g.fillRect(x + w / 2 - 1, base - h - 6, 2, 6);   // antena
       for (let wy = base - h + 3; wy < base - 3; wy += 5) {
         for (let wx = x + 2; wx < x + w - 2; wx += 4) {
-          this.ventanasCiudad.push({ x: wx, y: wy, umbral: rng.frac(), fase: rng.frac() * 6.28 });
+          // Barrio según la posición: hospital (izq.), industria (centro), casas (der.)
+          const barrio = wx < 440 ? 'hospital' : (wx < 545 ? 'industria' : 'casas');
+          this.ventanasCiudad.push({ x: wx, y: wy, umbral: rng.frac(), fase: rng.frac() * 6.28, barrio });
         }
       }
       x += w + rng.integerInRange(0, 3);
@@ -407,15 +487,24 @@ export class JuegoScene extends Phaser.Scene {
 
     this.resplandorCiudad = this.add.rectangle(516, base - 30, 248, 60, 0xf4d35e, 0).setDepth(6.1);
     this.graficoCiudad = this.add.graphics().setDepth(6.2);
-    this.add.text(516, base + 10, 'CIUDAD · RED ELÉCTRICA ▸', {
-      fontSize: '8px', fontFamily: 'Courier New', color: '#2a3340',
-    }).setOrigin(0.5).setDepth(6.2);
+    if (this.nivelId === 3) {
+      // Nombres de los barrios bajo la ciudad (deslastre de carga)
+      const est = { fontSize: '8px', fontFamily: 'Courier New', color: '#556070' };
+      this.add.text(416, base + 10, '✚ HOSP', { ...est, color: '#e66b73' }).setOrigin(0.5).setDepth(6.2);
+      this.etiquetaIndustria = this.add.text(492, base + 10, '[1] INDUST', est).setOrigin(0.5).setDepth(6.2);
+      this.etiquetaCasas = this.add.text(592, base + 10, '[2] CASAS', est).setOrigin(0.5).setDepth(6.2);
+    } else {
+      this.add.text(516, base + 10, 'CIUDAD · RED ELÉCTRICA ▸', {
+        fontSize: '8px', fontFamily: 'Courier New', color: '#2a3340',
+      }).setOrigin(0.5).setDepth(6.2);
+    }
   }
 
   /**
    * Luces de la ciudad según la relación P/D.
    *   P ≥ D  → ventanas encendidas y estables.
    *   P < D  → apagones parciales proporcionales al déficit, con parpadeo.
+   *   Nivel 3: los barrios cortados por deslastre quedan completamente a oscuras.
    */
   _actualizarCiudad(P, D) {
     const ratio = D > 0 ? Math.max(0, Math.min(1.1, P / D)) : 1;
@@ -424,6 +513,7 @@ export class JuegoScene extends Phaser.Scene {
     const g = this.graficoCiudad;
     g.clear();
     for (const v of this.ventanasCiudad) {
+      if (this.cortados.has(v.barrio)) continue;          // barrio deslastrado: a oscuras
       if (v.umbral > fraccion) continue;
       let a = 0.28 + 0.3 * Math.min(1, ratio);
       if (ratio < 0.9) a *= 0.6 + 0.4 * Math.sin(t * 9 + v.fase);   // parpadeo por déficit
@@ -443,10 +533,22 @@ export class JuegoScene extends Phaser.Scene {
     this.anguloTurbina = (this.anguloTurbina + omega * dt) % (Math.PI * 2);
     const g = this.graficoTurbinas;
     g.clear();
+    const averiada = averiaActiva(this.nivelId, this.tiempoJuego ?? 0);
     [278, 328, 378].forEach((cx, k) => {
       const cy = 572;
       g.fillStyle(0x050a10, 1);
       g.fillCircle(cx, cy, 18);
+      if (averiada && k === 2) {
+        // Turbina 3 fuera de servicio: rodete detenido y marco rojo
+        g.lineStyle(3, 0x5a2a2a, 1);
+        for (let i = 0; i < 6; i++) {
+          const a = (i * Math.PI * 2) / 6;
+          g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * 16, cy + Math.sin(a) * 16); g.strokePath();
+        }
+        g.lineStyle(2, COLORES.alarma_alta, 0.6 + 0.4 * Math.sin(this.time.now / 120));
+        g.strokeCircle(cx, cy, 19);
+        return;
+      }
       if (Qt > 0.02) {
         g.fillStyle(COLORES.linea_V_bright, 0.12 + 0.2 * Math.min(1, Qt));
         g.fillCircle(cx, cy, 17);
@@ -564,6 +666,16 @@ export class JuegoScene extends Phaser.Scene {
     g.fillRect(vx, vy, vw, placaV);
     g.lineStyle(1, 0xf4a261, 1);
     g.strokeRect(vx, vy, vw, vh);
+
+    if (troncoActivo(this.nivelId, this.tiempoJuego ?? 0)) {
+      // Tronco atascado en la boca del vertedero
+      g.fillStyle(0x5c3d1e, 1);
+      g.fillRoundedRect(vx - 10, vy + vh - 26, vw + 20, 12, 5);
+      g.fillStyle(0x7a5530, 1);
+      g.fillCircle(vx - 6, vy + vh - 20, 6);
+      g.lineStyle(1, 0x3a2410, 1);
+      g.strokeCircle(vx - 6, vy + vh - 20, 3);
+    }
   }
 
   _construirBarraApertura(x, y) {
@@ -645,7 +757,7 @@ export class JuegoScene extends Phaser.Scene {
       { label: 'P — POTENCIA GEN.',   key: 'indP',        color: '#52b788' },
       { label: 'P — DEMANDA RED',     key: 'indPdem',     color: '#f4d35e' },
       { label: 'ERROR POTENCIA',      key: 'indErrP',     color: '#f4a261' },
-      { label: 'CALIBRACIÓN (META 10s)', key: 'indBanda', color: '#52b788' },
+      { label: this._etiquetaBanda(), key: 'indBanda', color: '#52b788' },
     ];
 
     campos.forEach((c, i) => {
@@ -654,7 +766,7 @@ export class JuegoScene extends Phaser.Scene {
       const cx = x + col * 290;
       const cy = y + 28 + row * 40;
 
-      this.add.text(cx, cy, c.label, {
+      this[`${c.key}Label`] = this.add.text(cx, cy, c.label, {
         fontSize: '8px', fontFamily: 'Courier New', color: '#333333',
       }).setDepth(6);
 
@@ -662,6 +774,15 @@ export class JuegoScene extends Phaser.Scene {
         fontSize: '14px', fontFamily: 'Courier New', color: c.color,
       }).setDepth(6);
     });
+  }
+
+  /** Etiqueta del contador principal según el criterio del nivel. */
+  _etiquetaBanda() {
+    if (this.nivelConfig.modo === 'supervivencia') return 'SEGUIMIENTO |P − D| ≤ 8 MW · RMSE';
+    if ((this.nivelConfig.inicio_calibracion_s ?? 0) > 0) {
+      return `CALIBRACIÓN (META 10s, DESDE t=${this.nivelConfig.inicio_calibracion_s}s)`;
+    }
+    return 'CALIBRACIÓN (META 10s)';
   }
 
   _construirBarraTiempo() {
@@ -695,8 +816,8 @@ export class JuegoScene extends Phaser.Scene {
 
     this.add.text(660, 706,
       this.usarCamara
-        ? '[MANO DER ↑↓] TURBINAS  [PUÑO IZQ] VERTEDERO  [P] PAUSA  [A] SILENCIAR  [D] DEBUG'
-        : '[↑↓] TURBINAS  [ESPACIO] VERTEDERO  [P] PAUSA  [A] SILENCIAR  [D] DEBUG', {
+        ? `[MANO DER ↑↓] TURBINAS  ${this.nivelConfig.uv_habilitado ? '[PUÑO IZQ bajo 50% / alto 100%] VERTEDERO  ' : ''}${this.nivelId === 3 ? '[1][2] BARRIOS  ' : ''}[P] PAUSA  [A] SILENCIAR  [D] DEBUG`
+        : `[↑↓] TURBINAS  ${this.nivelConfig.uv_habilitado ? '[E/Q] VERTEDERO  [ESPACIO] VERTEDERO 100%  ' : ''}${this.nivelId === 3 ? '[1][2] BARRIOS  ' : ''}[P] PAUSA  [A] SILENCIAR  [D] DEBUG`, {
       fontSize: '9px', fontFamily: 'Courier New', color: '#333333', align: 'center',
     }).setOrigin(0.5).setDepth(7);
   }
@@ -713,7 +834,25 @@ export class JuegoScene extends Phaser.Scene {
       pausa:    Phaser.Input.Keyboard.KeyCodes.P,
       debug:    Phaser.Input.Keyboard.KeyCodes.D,
       menu:     Phaser.Input.Keyboard.KeyCodes.M,
+      abrirV:   Phaser.Input.Keyboard.KeyCodes.E,
+      cerrarV:  Phaser.Input.Keyboard.KeyCodes.Q,
     });
+
+    // Nivel 3: deslastre de carga. [1] industria · [2] casas (el hospital no se corta).
+    // Funciona también en modo cámara (las manos controlan las compuertas).
+    if (this.nivelId === 3) {
+      for (const sector of NIVEL3.sectores.filter((x) => x.cortable)) {
+        this.input.keyboard.on(`keydown-${sector.tecla}`, () => {
+          if (this.pausado || this.gameOver) return;
+          if (this.cortados.has(sector.id)) this.cortados.delete(sector.id);
+          else this.cortados.add(sector.id);
+          const sinLuz = this.cortados.has(sector.id);
+          this._mostrarBanner(
+            sinLuz ? `✂ ${sector.nombre} SIN LUZ (deslastre)` : `⚡ ${sector.nombre} RECONECTADA`,
+            sinLuz ? '#f4a261' : '#52b788');
+        });
+      }
+    }
 
     // Toggle pausa
     this.input.keyboard.on('keydown-P', () => {
@@ -750,6 +889,9 @@ export class JuegoScene extends Phaser.Scene {
     this.intensidadTormenta = this.nivelId === 1
       ? 0
       : Math.max(0, Math.min(1, (this.sistema.Qrio - 0.5) / 2.0));
+
+    // ─── EVENTOS DEL NIVEL (fases, tronco, avería) ────────────────────────────
+    this._actualizarEventos();
 
     // ─── LECTURA DE CONTROLES ─────────────────────────────────────────────────
     this._procesarControles(dt, time);
@@ -788,8 +930,9 @@ export class JuegoScene extends Phaser.Scene {
       return;
     }
 
-    if (this.tiempoBanda >= this.metaCalibracion) {
+    if (this.nivelConfig.modo === 'calibracion' && this.tiempoBanda >= this.metaCalibracion) {
       this.completadoTemprano = true;
+      this.tiempoCompletado = this.tiempoJuego;
       this._finalizarNivel();
     } else if (this.nivelId >= 2 && this.sistema.V >= LIMITES.V_max) {
       this.desborde = true;   // Embalse lleno: la presa desborda
@@ -816,8 +959,11 @@ export class JuegoScene extends Phaser.Scene {
       if (this.camara.manoDerechaVisible && this.camara.yMuneca !== null) {
         this.utObjetivo = aperturaDesdeAltura(this.camara.yMuneca, this.calib);
       }
-      // Si se pierde la mano derecha se mantiene la última consigna
-      this.uvObjetivo = (this.nivelConfig.uv_habilitado && this.camara.puno) ? 1.0 : 0.0;
+      // Si se pierde la mano derecha se mantiene la última consigna.
+      // Vertedero: mano abierta = 0 · puño bajo = 50 % · puño alto = 100 %
+      this.uvObjetivo = this.nivelConfig.uv_habilitado
+        ? posicionVertederoPuno(this.camara.puno, this.camara.yMunecaIzq, this.calib)
+        : 0.0;
       this._actualizarPreviewCamara();
     } else {
       // ─── TECLADO ─────────────────────────────────────────────────────────────
@@ -828,15 +974,53 @@ export class JuegoScene extends Phaser.Scene {
         this.utObjetivo = saturar(this.utObjetivo - velT * dt, 0, 1);
       }
       if (this.nivelConfig.uv_habilitado) {
-        this.uvObjetivo = this.keys.espacio.isDown ? 1.0 : 0.0;
+        // [E]/[Q] mantenidas abren/cierran poco a poco y la posición se queda (vertedero parcial).
+        // [ESPACIO] mantenido = apertura total de emergencia; al soltar vuelve a la posición fija.
+        if (this.keys.abrirV.isDown) this.uvConsigna = saturar(this.uvConsigna + velV * dt, 0, 1);
+        if (this.keys.cerrarV.isDown) this.uvConsigna = saturar(this.uvConsigna - velV * dt, 0, 1);
+        this.uvObjetivo = this.keys.espacio.isDown ? 1.0 : this.uvConsigna;
       }
     }
 
-    // Las compuertas siguen la consigna con velocidad limitada (actuador físico)
+    // Las compuertas siguen la consigna con velocidad limitada (actuador físico) y con los
+    // límites del instante: avería de turbina (N3) o tronco en el vertedero (N2).
+    const utMax = utMaximo(this.nivelId, this.tiempoJuego);
+    const uvMax = this.escalon ? 1 : uvMaximo(this.nivelId, this.tiempoJuego);
     const dUt = saturar(this.utObjetivo - this.sistema.ut, -velT * dt, velT * dt);
-    this.sistema.ut = saturar(this.sistema.ut + dUt, 0, 1);
+    this.sistema.ut = saturar(this.sistema.ut + dUt, 0, utMax);
     const dUv = saturar(this.uvObjetivo - this.sistema.uv, -velV * dt, velV * dt);
-    this.sistema.uv = saturar(this.sistema.uv + dUv, 0, 1);
+    this.sistema.uv = saturar(this.sistema.uv + dUv, 0, uvMax);
+  }
+
+  /** Anuncia fases y eventos programados del nivel con un banner. */
+  _actualizarEventos() {
+    if (this.escalon) return;
+    const t = this.tiempoJuego;
+    if (this.nivelId === 1 && t < 0.1) {
+      this._evento('n1_inicio', 'TUTORIAL · paso 1: CIERRA turbinas [↓] para llenar el embalse', '#f4d35e');
+    }
+    if (this.nivelId === 2) {
+      const fase = faseNivel2(t);
+      if (fase.id !== this.faseActual) {
+        this.faseActual = fase.id;
+        this._mostrarBanner(`FASE: ${fase.nombre} — ${fase.mensaje}`, fase.color);
+      }
+      if (troncoActivo(2, t)) {
+        this._evento('tronco_ini', '🪵 ¡TRONCO EN EL VERTEDERO! (máx 25 %) — sube TURBINAS', '#f4a261');
+      } else if (t >= this.nivelConfig.tronco_fin_s) {
+        this._evento('tronco_fin', 'Vertedero despejado: capacidad completa', '#52b788');
+      }
+    }
+    if (this.nivelId === 3) {
+      if (avisoAveria(3, t) !== null) {
+        this._evento('averia_aviso', `⚠ AVERÍA EN TURBINA 3 EN ${NIVEL3.aviso_averia_s} s — prepara el deslastre`, '#f4a261');
+      }
+      if (averiaActiva(3, t)) {
+        this._evento('averia_ini', '✖ TURBINA 3 FUERA DE SERVICIO (u_t máx 66 %)', '#e63946');
+      } else if (t >= NIVEL3.averia_fin_s) {
+        this._evento('averia_fin', '✔ TURBINA 3 REPARADA — reconecta los barrios si alcanza', '#52b788');
+      }
+    }
   }
 
   /** Registra la muestra del ensayo de escalón y descarga el CSV al llegar a T. */
@@ -856,15 +1040,19 @@ export class JuegoScene extends Phaser.Scene {
     }
   }
 
-  /** Demanda eléctrica cruda en el instante actual [MW]. */
-  _pdem() {
-    return demandaPorNivel(this.nivelId, this.tiempoJuego);
+  /** Demanda del instante: total, activa (sin barrios cortados) y por barrio. */
+  _demanda() {
+    return demandaActiva(this.nivelId, this.tiempoJuego, this.cortados);
   }
 
-  /** Demanda de referencia alcanzable: min(P_demanda, P_max(V) + 5 MW). */
+  /** Demanda total de la red en el instante actual [MW]. */
+  _pdem() {
+    return this._demanda().total;
+  }
+
+  /** Demanda de referencia: la que el jugador debe seguir (sin los barrios cortados). */
   _pdemRef() {
-    const margen = this.nivelId === 3 ? NIVEL3.margen_Pmax_MW : 5;
-    return demandaEfectiva(this._pdem(), this.sistema.V, margen);
+    return this._demanda().activa;
   }
 
   _actualizarMetricas(dt) {
@@ -874,27 +1062,31 @@ export class JuegoScene extends Phaser.Scene {
 
     this.Vmax = Math.max(this.Vmax, V);
     this.Vmin = Math.min(this.Vmin, V);
-    this.desvMax = Math.max(this.desvMax, Math.abs(V - EQUILIBRIO.V0));
+    this.desvMax = Math.max(this.desvMax, Math.abs(V - this.V0));
     if (V > LIMITES.V_alarma_alta) this.tiempoRebosamiento += dt;
     if (V < LIMITES.V_alarma_baja) this.tiempoCavitacion += dt;
 
-    // Tiempo en banda de V y potencia calibrada (10s para completar el nivel)
-    const enBandaV = V >= (LIMITES.V_objetivo - LIMITES.V_banda) &&
-                     V <= (LIMITES.V_objetivo + LIMITES.V_banda);
+    // Tiempo en banda de V y potencia calibrada (10 s para completar el nivel).
+    // En el N2 solo cuenta desde la fase de recuperación; en el N3 (supervivencia) el
+    // indicador muestra el seguimiento |P − D_activa| ≤ 8 MW pero no termina el nivel.
     const errorRelP = Math.abs(P - Pref) / Pref;
-    const enBandaP = this.nivelId === 3
-      ? Math.abs(P - Pref) <= NIVEL3.rmse_max_MW
-      : errorRelP <= (this.nivelConfig.error_P_max ?? 0.05);
+    const { enBandaV, calibrado } = estadoCalibracion(this.nivelConfig, V, P, Pref);
+    this.enCalibracion = calibrado;
+    this.calibracionCuenta = calibracionHabilitada(this.nivelConfig, this.tiempoJuego);
+    if (enBandaV) this.tiempoEnBandaTotal += dt;
 
-    this.enCalibracion = enBandaV && enBandaP;
-
-    if (this.enCalibracion) {
+    if (this.enCalibracion && this.calibracionCuenta) {
       this.tiempoBanda += dt;
-      this.tiempoEnBandaTotal += dt;
-      this.tiempoBandaMax = Math.max(this.tiempoBandaMax, this.tiempoBanda);
+      this.tiempoBandaMax = Math.max(this.tiempoBanda, this.tiempoBandaMax);
     } else {
       this.tiempoBanda = 0;
     }
+
+    // Energía no suministrada por deslastre (Nivel 3), ponderada por barrio
+    const d = this._demanda();
+    this.ensNum += d.cortadaPonderada * dt;
+    this.ensDen += d.total * dt;
+    if (this.cortados.size > 0) this.tiempoDeslastre += dt;
 
     // Error de potencia acumulado (relativo y cuadrático) contra la demanda de referencia
     this.acumErrorP += errorRelP * dt;
@@ -908,7 +1100,8 @@ export class JuegoScene extends Phaser.Scene {
     const { V, P, H, ut, uv, Qrio } = this.sistema;
     const Pdem = this._pdem();
 
-    this.graficaTendencia.agregar(t, P, Pdem, V);
+    // La gráfica muestra la demanda que hay que seguir (sin los barrios cortados)
+    this.graficaTendencia.agregar(t, P, this._pdemRef(), V);
 
     // Guardar registro para CSV
     this.registros.push({
@@ -921,6 +1114,9 @@ export class JuegoScene extends Phaser.Scene {
       P_MW: P.toFixed(4),
       Pdemanda_MW: Pdem.toFixed(4),
       Pref_MW: this._pdemRef().toFixed(4),
+      ut_max: utMaximo(this.nivelId, t).toFixed(2),
+      uv_max: uvMaximo(this.nivelId, t).toFixed(2),
+      cortados: [...this.cortados].join('+'),
     });
   }
 
@@ -962,42 +1158,32 @@ export class JuegoScene extends Phaser.Scene {
     this.indPdem?.setText(`${Pdem.toFixed(2)} MW`);
 
     const errP = Math.abs(P - Pref) / Pref * 100;
-    const umbralPct = this.nivelId === 3
+    const umbralPct = this.nivelConfig.modo === 'supervivencia'
       ? (NIVEL3.rmse_max_MW / Pref * 100)
       : ((this.nivelConfig.error_P_max ?? 0.05) * 100);
     const okP = errP <= umbralPct;
     this.indErrP?.setText(`${errP.toFixed(1)}%  ${okP ? '✓' : '✗'}`);
     this.indErrP?.setColor(okP ? '#52b788' : '#f4a261');
 
-    const bandaActual = this.tiempoBanda.toFixed(1);
     const meta = this.metaCalibracion;
-    this.indBanda?.setText(`${bandaActual}s / ${meta}s  ${this.enCalibracion ? '● CALIBRADO' : '○ AJUSTAR'}`);
-    this.indBanda?.setColor(this.enCalibracion ? '#52b788' : '#f4a261');
-
-    // Instrucciones dinámicas en tiempo real para guiar al jugador a completar los 10s
-    if (this.textoGuiaDinamica) {
-      if (this.enCalibracion) {
-        const rest = Math.max(0, meta - this.tiempoBanda).toFixed(1);
-        this.textoGuiaDinamica.setText(`✓ CALIBRACIÓN ESTABLE — Mantén así ${rest}s más para completar el nivel`);
-        this.textoGuiaDinamica.setColor('#52b788');
-      } else {
-        const acciones = [];
-        if (V > LIMITES.V_objetivo + LIMITES.V_banda) {
-          acciones.push(this.nivelConfig.uv_habilitado
-            ? 'Nivel V alto (>33 hm³): abre VERTEDERO [ESPACIO / Puño Izq] o sube turbinas'
-            : 'Nivel V alto (>33 hm³): abre más las TURBINAS [↑ / Mano Der arriba]');
-        } else if (V < LIMITES.V_objetivo - LIMITES.V_banda) {
-          acciones.push('Nivel V bajo (<27 hm³): cierra VERTEDERO y reduce TURBINAS [↓ / Mano Der abajo]');
-        }
-        if (!okP) {
-          acciones.push(P < Pref
-            ? `Potencia baja (${P.toFixed(1)} < ${Pref.toFixed(1)} MW): SUBE turbinas [↑]`
-            : `Potencia alta (${P.toFixed(1)} > ${Pref.toFixed(1)} MW): BAJA turbinas [↓]`);
-        }
-        this.textoGuiaDinamica.setText(`⚠ ${acciones.join('  |  ')}`);
-        this.textoGuiaDinamica.setColor('#f4d35e');
-      }
+    if (this.nivelConfig.modo === 'supervivencia') {
+      // N3: error instantáneo y RMSE acumulado (el nivel se evalúa al terminar el turno)
+      const rmse = this.muestrasP > 0 ? Math.sqrt(this.acumSqErrP / this.muestrasP) : 0;
+      const okRmse = rmse <= NIVEL3.rmse_max_MW;
+      this.indBanda?.setText(`|ΔP| ${Math.abs(P - Pref).toFixed(1)} MW · RMSE ${rmse.toFixed(1)}  ${okRmse ? '✓' : '✗'}`);
+      this.indBanda?.setColor(okRmse ? '#52b788' : '#f4a261');
+    } else if (!this.calibracionCuenta) {
+      const falta = Math.max(0, (this.nivelConfig.inicio_calibracion_s ?? 0) - this.tiempoJuego);
+      this.indBanda?.setText(`BLOQUEADA · cuenta en ${falta.toFixed(0)} s`);
+      this.indBanda?.setColor('#666666');
+    } else {
+      this.indBanda?.setText(`${this.tiempoBanda.toFixed(1)}s / ${meta}s  ${this.enCalibracion ? '● CALIBRADO' : '○ AJUSTAR'}`);
+      this.indBanda?.setColor(this.enCalibracion ? '#52b788' : '#f4a261');
     }
+
+    // Instrucciones dinámicas y panel propio del nivel
+    this._actualizarGuia(V, P, Pref, okP);
+    this._actualizarPanelNivel(V, P, Pref);
 
     // Barra de apertura de turbinas
     if (this.barraApertura) {
@@ -1020,11 +1206,11 @@ export class JuegoScene extends Phaser.Scene {
     const Qt = HIDRO.Kt * ut;
     const Qv = HIDRO.Kv * this.sistema.uv;
     this._actualizarTurbinas(dt, Qt);
-    this._actualizarCiudad(P, Pdem);
+    this._actualizarCiudad(P, Pref);
     this.textoQt?.setText(`Q_t = ${Qt.toFixed(2)} hm³/h`);
-    this.textoQv?.setText(`Q_v = ${Qv.toFixed(2)} hm³/h`);
-    this.textoPD?.setText(`P/D = ${(P / Pdem * 100).toFixed(0)} %${Pdem > P + Math.max(2, 0.05 * Pdem) ? '  ⚠ DÉFICIT' : ''}`);
-    this.sonido.actualizar(dt, { Qt, Qv, P, D: Pdem });
+    this.textoQv?.setText(`Q_v = ${Qv.toFixed(2)} hm³/h${troncoActivo(this.nivelId, this.tiempoJuego) ? '  🪵 BLOQUEADO' : ''}`);
+    this.textoPD?.setText(`P/D = ${(P / Pref * 100).toFixed(0)} %${Pref > P + Math.max(2, 0.05 * Pref) ? '  ⚠ DÉFICIT' : ''}`);
+    this.sonido.actualizar(dt, { Qt, Qv, P, D: Pref });
 
     // Gauge H
     this.gauge.actualizar(H);
@@ -1043,6 +1229,111 @@ export class JuegoScene extends Phaser.Scene {
     }
   }
 
+  /** Línea amarilla bajo el objetivo: qué hacer ahora. */
+  _actualizarGuia(V, P, Pref, okP) {
+    if (!this.textoGuiaDinamica) return;
+    const g = this.textoGuiaDinamica;
+    if (this.nivelId === 1) {
+      const e = etapaNivel1(V, P, Pref);
+      if (e.indice === 3 && this.enCalibracion) {
+        g.setText(`✓ PASO 3/3 SOSTENER — ${Math.max(0, this.metaCalibracion - this.tiempoBanda).toFixed(1)} s más`);
+        g.setColor('#52b788');
+      } else {
+        g.setText(`PASO ${e.indice}/3 ${e.titulo}: ${e.pista}`);
+        g.setColor('#f4d35e');
+      }
+      return;
+    }
+    if (this.nivelId === 2 && !this.calibracionCuenta) {
+      const fase = faseNivel2(this.tiempoJuego);
+      g.setText(`${fase.nombre}: ${fase.mensaje}`);
+      g.setColor(fase.color);
+      return;
+    }
+    if (this.enCalibracion && this.nivelConfig.modo === 'calibracion') {
+      const rest = Math.max(0, this.metaCalibracion - this.tiempoBanda).toFixed(1);
+      g.setText(`✓ CALIBRACIÓN ESTABLE — Mantén así ${rest}s más para completar el nivel`);
+      g.setColor('#52b788');
+      return;
+    }
+    const acciones = [];
+    if (this.nivelId === 3) {
+      const cap = capacidadDisponible(3, this.tiempoJuego, V);
+      if (Pref > cap) acciones.push(`Demanda ${Pref.toFixed(0)} > capacidad ${cap.toFixed(0)} MW: corta un barrio [1]/[2]`);
+      else if (this.cortados.size > 0 && this._demanda().total <= cap) acciones.push('Hay capacidad: reconecta los barrios [1]/[2]');
+      if (V > 45) acciones.push('Embalse alto: abre VERTEDERO [E] / puño');
+    } else if (V > LIMITES.V_objetivo + LIMITES.V_banda) {
+      acciones.push('V alto (>33 hm³): abre VERTEDERO [E · ESPACIO / puño izq]');
+    } else if (V < LIMITES.V_objetivo - LIMITES.V_banda) {
+      acciones.push('V bajo (<27 hm³): cierra VERTEDERO [Q] y reduce TURBINAS [↓]');
+    }
+    if (!okP) {
+      acciones.push(P < Pref
+        ? `P baja (${P.toFixed(1)} < ${Pref.toFixed(1)} MW): SUBE turbinas [↑]`
+        : `P alta (${P.toFixed(1)} > ${Pref.toFixed(1)} MW): BAJA turbinas [↓]`);
+    }
+    g.setText(acciones.length ? `⚠ ${acciones.join('  |  ')}` : '✓ Seguimiento correcto');
+    g.setColor(acciones.length ? '#f4d35e' : '#52b788');
+  }
+
+  /** Panel propio del nivel: etapas (N1), fase + pronóstico (N2), barrios + capacidad (N3). */
+  _actualizarPanelNivel(V, P, Pref) {
+    const t = this.tiempoJuego;
+    if (this.nivelId === 1) {
+      const e = etapaNivel1(V, P, Pref);
+      const marca = (i) => (e.indice > i ? '✓' : (e.indice === i ? '▶' : '·'));
+      this.textoPanelNivel.setText(
+        `${marca(1)} 1. Llevar V a 30 ± 3 hm³   (${V.toFixed(1)})\n` +
+        `${marca(2)} 2. Entregar 47.4 MW ± 5 %   (${P.toFixed(1)})\n` +
+        `${marca(3)} 3. Sostener 10 s           (${this.tiempoBanda.toFixed(1)} s)\n` +
+        'El agua tarda: corrige ANTES de llegar.'
+      );
+      if (this.flechaTutorial) {
+        const parpadeo = Math.floor(this.time.now / 350) % 2 === 0;
+        const txt = { sube: '▲ ABRE [↑]', baja: '▼ CIERRA [↓]', mantener: '● MANTÉN' }[e.direccion];
+        this.flechaTutorial.setText(txt)
+          .setColor(e.direccion === 'mantener' ? '#52b788' : '#f4d35e')
+          .setAlpha(e.direccion === 'mantener' || parpadeo ? 1 : 0.25);
+      }
+      return;
+    }
+    if (this.nivelId === 2) {
+      const fase = faseNivel2(t);
+      const qAhora = this.sistema.Qrio;
+      const qFut = pronosticoCaudal(2, t);
+      const flecha = qFut > qAhora + 0.05 ? '▲' : (qFut < qAhora - 0.05 ? '▼' : '=');
+      const lineaTronco = troncoActivo(2, t)
+        ? '🪵 TRONCO: vertedero máx 25 %'
+        : `Vertedero: ${Math.round(this.sistema.uv * 100)} %  (posición fija ${Math.round(this.uvConsigna * 100)} %)`;
+      this.textoPanelNivel.setText(
+        `FASE: ${fase.nombre}\n` +
+        `Q_río ahora ${qAhora.toFixed(2)} · en ${this.nivelConfig.pronostico_s} s: ${qFut.toFixed(2)} hm³/h ${flecha}\n` +
+        `${lineaTronco}\n` +
+        (this.calibracionCuenta ? 'Calibración ACTIVA' : `Calibración desde t = ${this.nivelConfig.inicio_calibracion_s} s`)
+      );
+      this.textoPanelNivel.setColor(fase.color);
+      return;
+    }
+    // Nivel 3: barrios, capacidad disponible y volumen necesario
+    const d = this._demanda();
+    const cap = capacidadDisponible(3, t, V);
+    const Vreq = volumenNecesario(3, t, d.total);
+    const fila = (s) => {
+      const off = this.cortados.has(s.id);
+      const tecla = s.cortable ? `[${s.etiquetaTecla}]` : '[✚]';
+      return `${tecla} ${s.nombre.padEnd(9)} ${d.sectores[s.id].toFixed(0).padStart(3)} MW ${off ? '✂ SIN LUZ' : '● ON'}`;
+    };
+    const ens = this.ensDen > 0 ? this.ensNum / this.ensDen : 0;
+    const estadoT = averiaActiva(3, t) ? ' ✖T3' : '';
+    this.textoPanelNivel.setText(
+      NIVEL3.sectores.map(fila).join('\n') + '\n' +
+      `CAPACIDAD ${cap.toFixed(0)} MW${estadoT} · V necesario ${Vreq > LIMITES.V_max ? '>50 ✖' : (Vreq <= 0 ? 'cualquiera' : Vreq.toFixed(1))} · ENS ${(ens * 100).toFixed(1)}%`
+    );
+    this.textoPanelNivel.setColor(d.activa > cap ? '#f4a261' : '#cccccc');
+    this.etiquetaIndustria?.setColor(this.cortados.has('industria') ? '#5a2a2a' : '#556070');
+    this.etiquetaCasas?.setColor(this.cortados.has('casas') ? '#5a2a2a' : '#556070');
+  }
+
   _estadoV(V) {
     if (V > LIMITES.V_alarma_alta) return '[!PELIGRO]';
     if (V > LIMITES.V_objetivo + LIMITES.V_banda) return '[ALTO]';
@@ -1057,15 +1348,28 @@ export class JuegoScene extends Phaser.Scene {
 
     // Calcular métricas finales
     const errorPMedio = this.muestrasP > 0 ? this.acumErrorP / this.muestrasP : 1;
-    // RMSE de potencia contra la demanda de referencia min(P_dem, P_max(V)+5)
+    // RMSE de potencia contra la demanda activa (sin los barrios cortados)
     const rmse = this.muestrasP > 0 ? Math.sqrt(this.acumSqErrP / this.muestrasP) : Infinity;
     const pctBanda = this.tiempoJuego > 0 ? 100 * this.tiempoEnBandaTotal / this.tiempoJuego : 0;
-    // Si completó los 10s de calibración continua, aprueba inmediatamente.
-    // Si no lo logró y se agotaron los 120s (2 minutos) o hubo desborde/descebe, falla.
-    const exito = this.completadoTemprano && !this.desborde && !this.descebe;
+    const ens = this.ensDen > 0 ? this.ensNum / this.ensDen : 0;
+    // N1/N2: aprueba al completar 10 s de calibración continua (en el N2, en la recuperación).
+    // N3: aprueba si termina el turno sin desborde/descebe, con RMSE ≤ 8 MW y ENS ≤ 12 %.
+    const { exito, motivo } = evaluarNivel(this.nivelConfig, {
+      completadoTemprano: this.completadoTemprano,
+      desborde: this.desborde,
+      descebe: this.descebe,
+      tiempoJugado: this.tiempoJuego,
+      rmse, ens,
+    });
 
     this.scene.start('ResultadosScene', {
       nivel: this.nivelId,
+      motivo,
+      duracion: this.duracion,
+      ens,
+      tiempoDeslastre: this.tiempoDeslastre,
+      tiempoCompletado: this.tiempoCompletado,
+      inicioCalibracion: this.nivelConfig.inicio_calibracion_s ?? 0,
       registros: this.registros,
       tiempoBandaMax: this.tiempoBandaMax,
       metaCalibracion: this.metaCalibracion,

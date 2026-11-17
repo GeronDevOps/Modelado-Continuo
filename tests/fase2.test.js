@@ -1,11 +1,13 @@
 /**
  * fase2.test.js
- * Pruebas de la lógica de gestos (muñeca / puño) y de factibilidad del Nivel 2.
+ * Pruebas de la lógica de gestos (muñeca / puño en dos posiciones) y del perfil de la
+ * tormenta del Nivel 2. Las reglas nuevas del N2 (fases, tronco, recuperación) se
+ * prueban en tests/niveles.test.js.
  */
 
 import { describe, test, expect } from 'vitest';
 import {
-  aperturaDesdeAltura, calibracionValida, esPuno, separarManos,
+  aperturaDesdeAltura, calibracionValida, esPuno, separarManos, posicionVertederoPuno,
 } from '../src/entrada/gestos.js';
 import { SistemaContinuo, saturar } from '../src/modelo/SistemaContinuo.js';
 import { rk4, H_PASO } from '../src/modelo/integradores.js';
@@ -42,6 +44,14 @@ describe('Altura de muñeca → apertura de compuerta', () => {
     expect(calibracionValida(calib)).toBe(true);
     expect(calibracionValida(null)).toBe(false);
   });
+});
+
+describe('Vertedero con dos posiciones de puño', () => {
+  const calib = { yBajo: 0.8, yAlto: 0.2 };
+  test('mano abierta = cerrado', () => expect(posicionVertederoPuno(false, 0.3, calib)).toBe(0));
+  test('puño bajo = 50 %', () => expect(posicionVertederoPuno(true, 0.7, calib)).toBe(0.5));
+  test('puño alto = 100 %', () => expect(posicionVertederoPuno(true, 0.3, calib)).toBe(1));
+  test('puño sin altura conocida = 100 %', () => expect(posicionVertederoPuno(true, null, calib)).toBe(1));
 });
 
 describe('Detección de puño', () => {

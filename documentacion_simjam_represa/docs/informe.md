@@ -15,14 +15,15 @@ Paso h = 1/120 s. Criterio: error máximo de RK4 < 10⁻⁴.
 | Modelo del juego (u_t = 0, u_v = 0, Q_río = 0,5), T = 120 s   | RK4 | 1/120 | 4,4·10⁻¹³ hm³ | Sí |
 | Modelo del juego (mismo caso)   | Euler | 1/120 | 1,7·10⁻⁵ hm³ | Informativo |
 
-Salida de `npm test` (Vitest, 2026-11-17): **4 archivos, 36/36 pruebas aprobadas** en ≈ 3,9 s. Las pruebas Vitest no incluyen los sistemas de prueba de 1.er y 2.º orden; esas filas las cubre el script de referencia.
+Salida de `npm test` (Vitest, 2026-11-17, después del rediseño de niveles): **5 archivos, 62/62 pruebas aprobadas**. Las pruebas Vitest no incluyen los sistemas de prueba de 1.er y 2.º orden; esas filas las cubre el script de referencia.
 
 | Archivo | Pruebas | Qué comprueba |
 |---|---|---|
 | `tests/modelo.test.js` | 14 ✔ | Equilibrio (dV/dt ≈ 0, estable 120 s); H(0) = 20, H(30) = 44, H(50) = 60 m; P₀ ≈ 47,432 MW; P_max ≈ 147 MW; escalones ±0,1 en u_t y u_v = 1; Euler vs RK4 < 0,05 hm³; τ = 500 h = 2500 s; exportación de `vensim_escalon.csv` |
-| `tests/fase2.test.js` | 11 ✔ | Altura de muñeca → u_t con saturación y calibración; detección de puño; selección de mano derecha/izquierda; Nivel 2: sin vertedero supera el umbral de rebose y con vertedero termina cerca de 30 |
-| `tests/fase3.test.js` | 7 ✔ | Perfiles del Nivel 3 (Q_río 0,5–2,5; demanda 30–120 MW); demanda efectiva acotada por P_max(V) + 5; factibilidad con seguimiento directo y con 2 s de retardo humano; deriva sin vertedero |
-| `tests/regresion.test.js` (día 2) | 4 ✔ | Existe la línea base; el escalón a 60 FPS y a 15 FPS reproduce `docs/linea_base_escalon.csv` (valor final, tiempo de subida y Mp); parámetros del modelo y niveles iguales a `docs/niveles_linea_base.json` |
+| `tests/fase2.test.js` | 15 ✔ | Altura de muñeca → u_t con saturación y calibración; vertedero con dos posiciones de puño (0 / 50 / 100 %); detección de puño; selección de mano derecha/izquierda; Nivel 2: sin vertedero supera el umbral de rebose y con vertedero termina cerca de 30 |
+| `tests/fase3.test.js` | 13 ✔ | Perfiles del Nivel 3 (Q_río 0,5–2,5; demanda 30–120 MW); barrios y deslastre (hospital fijo, ENS ponderada); avería (u_t ≤ 0,66, aviso de 3 s) y capacidad disponible; factibilidad: aprueba cortando la industria (también con 1 s de retardo), falla cortando las casas (ENS) o sin cortar (RMSE); `demandaEfectiva` como utilidad |
+| `tests/niveles.test.js` (rediseño) | 15 ✔ | Ningún nivel se gana sin tocar los controles y un jugador razonable aprueba los tres (simulación `analisis/simular_niveles.mjs`); etapas del N1; fases, pronóstico, tronco y calibración desde t = 90 s del N2; `evaluarNivel` |
+| `tests/regresion.test.js` (día 2) | 5 ✔ | Existe la línea base; el escalón a 60 FPS y a 15 FPS reproduce `docs/linea_base_escalon.csv` (valor final, tiempo de subida y Mp); parámetros del modelo iguales a `docs/niveles_linea_base.json`; niveles iguales a `docs/niveles_linea_base_v2.json` |
 
 Pruebas del modelo de la represa  :
 
@@ -170,4 +171,4 @@ Las tablas del día 2 (revisión inicial, etapas de integración, regresión, me
 | Mismo escalón a 144 FPS | 0,00 % / 0,00 % / 0,00 puntos → pasa |
 | Juego en el navegador, `?control=escalon`, 60 FPS | 0,0001 % / 0,0009 % / 0,002 puntos → pasa |
 | Juego en el navegador, `?control=escalon`, 15 FPS (CPU 4×) | 0,0004 % / 0,0031 % / 0,002 puntos → pasa |
-| Niveles sin cambios (`niveles_linea_base.json`) | Pasa |
+| Modelo sin cambios (`niveles_linea_base.json`) y niveles iguales a la línea base del rediseño (`niveles_linea_base_v2.json`) | Pasa |

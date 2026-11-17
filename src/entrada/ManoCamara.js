@@ -3,7 +3,9 @@
  * Entrada biométrica con MediaPipe HandLandmarker (modo VIDEO).
  *
  *   - Mano DERECHA: altura de la muñeca (landmark 0) → apertura de turbinas u_t.
- *   - Mano IZQUIERDA: puño cerrado → vertedero abierto (u_v).
+ *   - Mano IZQUIERDA: puño cerrado → vertedero abierto (u_v). Dos posiciones según la
+ *     altura de la muñeca izquierda: puño bajo = 50 %, puño alto = 100 % (ver
+ *     posicionVertederoPuno en gestos.js). Mano abierta = vertedero cerrado.
  *
  * Si la cámara o el modelo no están disponibles, `estado` pasa a 'error' y la
  * escena de juego continúa con el teclado.
@@ -28,6 +30,7 @@ export class ManoCamara {
     this.yMuneca = null;        // Suavizada, [0,1], 0 = arriba
     this.yMunecaCruda = null;
     this.puno = false;
+    this.yMunecaIzq = null;     // Suavizada, [0,1], muñeca izquierda (posición del vertedero)
     this.landmarksDerecha = null;
     this.landmarksIzquierda = null;
   }
@@ -93,6 +96,13 @@ export class ManoCamara {
         : this.yMuneca + CAMARA.suavizado * (y - this.yMuneca);
     }
     this.puno = izquierda ? esPuno(izquierda) : false;
+    if (izquierda) {
+      // Altura de la muñeca izquierda: con puño elige la posición del vertedero (50 % / 100 %)
+      const yi = izquierda[CAMARA.landmark_muneca].y;
+      this.yMunecaIzq = this.yMunecaIzq === null
+        ? yi
+        : this.yMunecaIzq + CAMARA.suavizado * (yi - this.yMunecaIzq);
+    }
   }
 
   /** Dibuja el frame (espejado, como un espejo) en un canvas 2D. */

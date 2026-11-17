@@ -13,18 +13,21 @@ const FUENTE = 'Courier New, monospace';
 const NIVELES = [
   {
     cfg: NIVEL1, color: COLORES.linea_P, dificultad: 'FÁCIL',
-    desc: 'Caudal y demanda constantes.\nCalibra V en 30 ± 3 hm³ y\nP ≈ 47.4 MW por 10 s para ganar.',
+    desc: 'Tutorial guiado. Empiezas con\nel embalse bajo (25 hm³): llénalo,\nentrega 47.4 MW y sostén 10 s.',
+    meta: 'Meta: 10 s calibrado',
     ctrl: 'Turbinas',
   },
   {
     cfg: NIVEL2, color: COLORES.linea_V_bright, dificultad: 'MEDIO',
-    desc: 'Una tormenta eleva el caudal.\nUsa el vertedero y mantén\n10 s de calibración estable.',
-    ctrl: 'Turbinas + vertedero',
+    desc: 'Pronóstico, tormenta y un tronco\nque tapa el vertedero. Sobrevive\ny recupera 10 s desde t = 90 s.',
+    meta: 'Meta: 10 s calibrado en la recuperación',
+    ctrl: 'Turbinas + vertedero parcial',
   },
   {
     cfg: NIVEL3, color: COLORES.alarma_baja, dificultad: 'DIFÍCIL',
-    desc: 'Caudal oscilante y demanda\nen rampa. Mantén 10 s de\ncalibración (error ≤ 8 MW).',
-    ctrl: 'Turbinas + vertedero',
+    desc: 'Demanda por barrios y avería de\nuna turbina. Si no alcanza, corta\nun barrio [1] [2]. Turno completo.',
+    meta: 'Meta: RMSE ≤ 8 MW y ENS ≤ 12 %',
+    ctrl: 'Turbinas + vertedero + barrios',
   },
 ];
 
@@ -101,7 +104,7 @@ export class NivelesScene extends Phaser.Scene {
       fontSize: '13px', fontFamily: FUENTE, color: '#888888', align: 'center', lineSpacing: 6,
     }).setOrigin(0.5);
 
-    this.add.text(x, y + 50, `Meta: 10s calibrado (máx ${n.cfg.duracion_s}s) · ${n.ctrl}`, {
+    this.add.text(x, y + 50, `${n.meta} (máx ${n.cfg.duracion_s}s) · ${n.ctrl}`, {
       fontSize: '10px', fontFamily: FUENTE, color: '#555555', align: 'center', wordWrap: { width: w - 20 },
     }).setOrigin(0.5);
 
