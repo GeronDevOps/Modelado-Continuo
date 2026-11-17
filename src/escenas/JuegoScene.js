@@ -22,11 +22,12 @@ import { GaugeHidraulico } from '../ui/GaugeHidraulico.js';
 import { SistemaAlarmas } from '../ui/Alarmas.js';
 import { aperturaDesdeAltura, calibracionValida } from '../entrada/gestos.js';
 import {
-  COLORES, NIVEL1, NIVEL2, NIVEL3, LIMITES, EQUILIBRIO, ACTUADORES, TIEMPO,
+  COLORES, NIVEL1, NIVEL2, NIVEL3, LIMITES, EQUILIBRIO, ACTUADORES, TIEMPO, HIDRO,
   caudalPorNivel, demandaPorNivel,
 } from '../config/constantes.js';
 import { demandaEfectiva } from '../modelo/SistemaContinuo.js';
 import { EfectosClima } from '../ui/Efectos.js';
+import { SonidoPlanta } from '../ui/Sonido.js';
 
 export class JuegoScene extends Phaser.Scene {
   constructor() {
@@ -67,7 +68,7 @@ export class JuegoScene extends Phaser.Scene {
     // Métricas de éxito
     this.tiempoBanda = 0;               // s continuos calibrados en la banda de V y potencia
     this.tiempoBandaMax = 0;
-    this.metaCalibracion = this.nivelConfig.tiempo_banda_minimo ?? 30;
+    this.metaCalibracion = this.nivelConfig.tiempo_banda_minimo ?? 10;
     this.completadoTemprano = false;
     this.acumErrorP = 0;
     this.muestrasP = 0;
@@ -91,6 +92,12 @@ export class JuegoScene extends Phaser.Scene {
     // ─── EFECTOS: lluvia, relámpagos, rocío del vertedero ────────────────────
     this.efectos = new EfectosClima(this, { x: 12, y: 52, w: 636, h: 440 });
     this.events.once('shutdown', () => this.efectos?.destruir());
+
+    // ─── SONIFICACIÓN: rumor del agua, zumbido eléctrico y alerta D > P ──────
+    this.sonido = new SonidoPlanta();
+    this.sonido.iniciar();
+    this.events.once('shutdown', () => this.sonido?.detener());
+    this.input.keyboard.on('keydown-A', () => this.sonido?.alternarSilencio());
     // ─── CONTROLES ────────────────────────────────────────────────────────────
     this._configurarTeclado();
 
@@ -266,6 +273,9 @@ export class JuegoScene extends Phaser.Scene {
     g.fillStyle(0x0d1f30, 0.5);
     g.fillTriangle(400, 400, 500, 230, 600, 400);
 
+    // ─── CIUDAD LEJANA (siluetas oscuras con ventanas tenues) ────────────────
+    this._construirCiudad(g);
+
     // Suelo
     g.fillStyle(0x151515);
     g.fillRect(30, 530, 590, 120);
@@ -279,6 +289,9 @@ export class JuegoScene extends Phaser.Scene {
     g.fillRect(315, 320, 30, 180);
 
     // Embalse (agua) — tamaño dinámico
+    this.textoNivelAgua = this.add.text(34, 480, '', {
+      fontSize: '10px', fontFamily: 'Courier New', color: '#4fc3f7',
+    }).setDepth(8);
     this.graficoAgua = this.add.graphics().setDepth(6);
     this._actualizarDiagramaAgua(this.sistema.V);
 
@@ -328,11 +341,112 @@ export class JuegoScene extends Phaser.Scene {
     this.add.text(334, 306, 'V', { fontSize: '9px', fontFamily: 'Courier New', color: '#f4a261' }).setDepth(8);
     this._actualizarCompuertas(this.sistema.ut, this.sistema.uv);
 
+    // ─── TURBINAS GIRATORIAS (velocidad ∝ Q_t) ───────────────────────────────
+    this.graficoTurbinas = this.add.graphics().setDepth(7.2);
+    this.anguloTurbina = 0;
+    this._actualizarTurbinas(0, 0);
+
+    // Lecturas de caudales (Q_t, Q_v) y relación P/D
+    const estLect = { fontSize: '10px', fontFamily: 'Courier New', color: '#888888' };
+    this.textoQt = this.add.text(400, 600, '', { ...estLect, color: '#52b788' }).setDepth(8);
+    this.textoQv = this.add.text(400, 616, '', { ...estLect, color: '#4fc3f7' }).setDepth(8);
+    this.textoPD = this.add.text(400, 632, '', { ...estLect, color: '#f4d35e' }).setDepth(8);
+
     // ─── BARRA VISUAL DE U_T (apertura turbinas) ─────────────────────────────
     this._construirBarraApertura(px + 6, py + ph - 120);
 
     // ─── INDICADORES NUMÉRICOS PRINCIPALES ────────────────────────────────────
     this._construirIndicadoresPlanta(px + 6, py + ph - 220);
+  }
+
+  /**
+   * Ciudad nocturna lejana: siluetas de edificios casi del color del fondo
+   * y ventanas tenues. Las ventanas se guardan para animarlas según P/D.
+   */
+  _construirCiudad(g) {
+    const rng = new Phaser.Math.RandomDataGenerator(['ciudad-patagonia']);
+    const base = 412;                 // línea de horizonte de la ciudad
+    this.ventanasCiudad = [];
+    let x = 392;
+    while (x < 640) {
+      const w = rng.integerInRange(7, 16);
+      const h = rng.integerInRange(10, 42);
+      g.fillStyle(0x060a10, 1);
+      g.fillRect(x, base - h, w, h);
+      if (rng.frac() < 0.25) g.fillRect(x + w / 2 - 1, base - h - 6, 2, 6);   // antena
+      for (let wy = base - h + 3; wy < base - 3; wy += 5) {
+        for (let wx = x + 2; wx < x + w - 2; wx += 4) {
+          this.ventanasCiudad.push({ x: wx, y: wy, umbral: rng.frac(), fase: rng.frac() * 6.28 });
+        }
+      }
+      x += w + rng.integerInRange(0, 3);
+    }
+    // Suelo de la ciudad y neblina de distancia
+    g.fillStyle(0x060a10, 1);
+    g.fillRect(392, base, 248, 6);
+    g.fillStyle(0x1a2a3a, 0.25);
+    g.fillRect(392, base - 46, 248, 52);
+
+    this.resplandorCiudad = this.add.rectangle(516, base - 30, 248, 60, 0xf4d35e, 0).setDepth(6.1);
+    this.graficoCiudad = this.add.graphics().setDepth(6.2);
+    this.add.text(516, base + 10, 'CIUDAD · RED ELÉCTRICA ▸', {
+      fontSize: '8px', fontFamily: 'Courier New', color: '#2a3340',
+    }).setOrigin(0.5).setDepth(6.2);
+  }
+
+  /**
+   * Luces de la ciudad según la relación P/D.
+   *   P ≥ D  → ventanas encendidas y estables.
+   *   P < D  → apagones parciales proporcionales al déficit, con parpadeo.
+   */
+  _actualizarCiudad(P, D) {
+    const ratio = D > 0 ? Math.max(0, Math.min(1.1, P / D)) : 1;
+    const fraccion = ratio >= 0.98 ? 1 : Math.pow(ratio, 2.5);
+    const t = this.time.now / 1000;
+    const g = this.graficoCiudad;
+    g.clear();
+    for (const v of this.ventanasCiudad) {
+      if (v.umbral > fraccion) continue;
+      let a = 0.28 + 0.3 * Math.min(1, ratio);
+      if (ratio < 0.9) a *= 0.6 + 0.4 * Math.sin(t * 9 + v.fase);   // parpadeo por déficit
+      g.fillStyle(ratio < 0.9 ? 0xf4a261 : 0xf4d35e, Math.max(0.05, a));
+      g.fillRect(v.x, v.y, 2, 2);
+    }
+    this.resplandorCiudad.setFillStyle(0xf4d35e, 0.03 + 0.07 * fraccion);
+  }
+
+  /**
+   * Turbinas Francis simplificadas: el rodete gira a velocidad angular ∝ Q_t.
+   * @param {number} dt - Delta [s]
+   * @param {number} Qt - Caudal turbinado [hm³/h]
+   */
+  _actualizarTurbinas(dt, Qt) {
+    const omega = 16 * Qt;                  // rad/s: 0 con compuerta cerrada, 16 a caudal máximo
+    this.anguloTurbina = (this.anguloTurbina + omega * dt) % (Math.PI * 2);
+    const g = this.graficoTurbinas;
+    g.clear();
+    [278, 328, 378].forEach((cx, k) => {
+      const cy = 572;
+      g.fillStyle(0x050a10, 1);
+      g.fillCircle(cx, cy, 18);
+      if (Qt > 0.02) {
+        g.fillStyle(COLORES.linea_V_bright, 0.12 + 0.2 * Math.min(1, Qt));
+        g.fillCircle(cx, cy, 17);
+      }
+      g.lineStyle(3, 0x9fb0c0, 1);
+      const palas = 6;
+      for (let i = 0; i < palas; i++) {
+        const a = this.anguloTurbina * (k % 2 ? -1 : 1) + (i * Math.PI * 2) / palas;
+        g.beginPath();
+        g.moveTo(cx, cy);
+        g.lineTo(cx + Math.cos(a) * 16, cy + Math.sin(a) * 16);
+        g.strokePath();
+      }
+      g.lineStyle(1, 0x3d5a80, 1);
+      g.strokeCircle(cx, cy, 18);
+      g.fillStyle(0xf4d35e, 1);
+      g.fillCircle(cx, cy, 3);
+    });
   }
 
   _actualizarDiagramaAgua(V) {
@@ -342,6 +456,8 @@ export class JuegoScene extends Phaser.Scene {
     const yLleno = 305;
     const yVacio = 490;
     const yAgua = yVacio - (yVacio - yLleno) * t;
+    this.textoNivelAgua?.setPosition(34, Math.min(yAgua - 14, yVacio - 14))
+      .setText(`V = ${V.toFixed(1)} hm³`);
 
     // Color según nivel: azul oscuro → azul brillante → verde alerta
     let colorAgua = EfectosClima.colorAgua(this.intensidadTormenta);
@@ -406,21 +522,24 @@ export class JuegoScene extends Phaser.Scene {
     g.fillStyle(0x050a10, 1);
     g.fillRect(vx, vy, vw, vh);
     if (uv > 0.02) {
+      // El chorro del vertedero depende directamente de Q_v = Kv·u_v
+      const Qv = HIDRO.Kv * uv;                      // [0, 2] hm³/h
       g.fillStyle(COLORES.linea_V_bright, 0.6);
       g.fillRect(vx + 2, vy + vh - vh * uv, vw - 4, vh * uv);
-      // Cascada por el paramento de aguas abajo hasta el río
-      g.fillStyle(0xcfefff, 0.35 + 0.35 * uv);
-      g.fillRect(371, 330, 10 + 16 * uv, 215);
-      const t = this.time.now / 80;
+      // Cascada por el paramento de aguas abajo hasta el río (ancho y opacidad ∝ Q_v)
+      g.fillStyle(0xcfefff, 0.25 + 0.2 * Qv);
+      g.fillRect(371, 330, 6 + 10 * Qv, 215);
+      const t = this.time.now / (110 - 25 * Qv);     // más caudal → caída más rápida
       g.fillStyle(0xffffff, 0.5);
-      for (let i = 0; i < 6; i++) {
-        const yy = 330 + ((t * 6 + i * 36) % 215);
-        g.fillRect(373 + (i % 3) * 5, yy, 3, 8);
+      const nGotas = 4 + Math.round(4 * Qv);
+      for (let i = 0; i < nGotas; i++) {
+        const yy = 330 + ((t * 6 + i * (215 / nGotas)) % 215);
+        g.fillRect(373 + (i % 3) * (2 + 2 * Qv), yy, 3, 6 + 4 * Qv);
       }
-      // Espuma al pie
+      // Espuma al pie, mayor con más caudal
       g.fillStyle(0xffffff, 0.45);
-      g.fillCircle(378 + 8 * uv, 545, 6 + 6 * uv);
-      g.fillCircle(392 + 8 * uv, 547, 4 + 5 * uv);
+      g.fillCircle(378 + 5 * Qv, 545, 5 + 5 * Qv);
+      g.fillCircle(392 + 5 * Qv, 547, 3 + 4 * Qv);
     }
     const placaV = vh * (1 - uv);
     g.fillStyle(0x8a6d4b, 1);
@@ -508,7 +627,7 @@ export class JuegoScene extends Phaser.Scene {
       { label: 'P — POTENCIA GEN.',   key: 'indP',        color: '#52b788' },
       { label: 'P — DEMANDA RED',     key: 'indPdem',     color: '#f4d35e' },
       { label: 'ERROR POTENCIA',      key: 'indErrP',     color: '#f4a261' },
-      { label: 'CALIBRACIÓN (META 30s)', key: 'indBanda', color: '#52b788' },
+      { label: 'CALIBRACIÓN (META 10s)', key: 'indBanda', color: '#52b788' },
     ];
 
     campos.forEach((c, i) => {
@@ -581,6 +700,7 @@ export class JuegoScene extends Phaser.Scene {
     // Toggle pausa
     this.input.keyboard.on('keydown-P', () => {
       this.pausado = !this.pausado;
+      if (this.sonido) this.sonido.pausado = this.pausado;
       this.textoEstado.setText(this.pausado ? '— PAUSA —' : 'SISTEMA OPERATIVO');
       this.textoEstado.setColor(this.pausado ? '#f4a261' : '#444444');
     });
@@ -600,6 +720,7 @@ export class JuegoScene extends Phaser.Scene {
   // ─── GAME LOOP ─────────────────────────────────────────────────────────────
 
   update(time, delta) {
+    if (this.pausado && !this.gameOver) this.sonido?.actualizar(0, { Qt: 0, Qv: 0, P: 0, D: 0 });
     if (this.pausado || this.gameOver) return;
 
     const dt = delta / 1000;  // Convertir ms a s
@@ -639,7 +760,7 @@ export class JuegoScene extends Phaser.Scene {
     // ─── ACTUALIZAR HMI ───────────────────────────────────────────────────────
     this._actualizarHMI(dt);
 
-    // ─── FIN DEL NIVEL (30s de calibración exitosa o 120s de límite / fallo) ──
+    // ─── FIN DEL NIVEL (10s de calibración exitosa o 120s de límite / fallo) ──
     this.efectos.actualizar(dt, this.intensidadTormenta, this.sistema.uv, { x: 380, y: 545 });
 
     if (this.tiempoBanda >= this.metaCalibracion) {
@@ -711,7 +832,7 @@ export class JuegoScene extends Phaser.Scene {
     if (V > LIMITES.V_alarma_alta) this.tiempoRebosamiento += dt;
     if (V < LIMITES.V_alarma_baja) this.tiempoCavitacion += dt;
 
-    // Tiempo en banda de V y potencia calibrada (30s para completar el nivel)
+    // Tiempo en banda de V y potencia calibrada (10s para completar el nivel)
     const enBandaV = V >= (LIMITES.V_objetivo - LIMITES.V_banda) &&
                      V <= (LIMITES.V_objetivo + LIMITES.V_banda);
     const errorRelP = Math.abs(P - Pref) / Pref;
@@ -807,7 +928,7 @@ export class JuegoScene extends Phaser.Scene {
     this.indBanda?.setText(`${bandaActual}s / ${meta}s  ${this.enCalibracion ? '● CALIBRADO' : '○ AJUSTAR'}`);
     this.indBanda?.setColor(this.enCalibracion ? '#52b788' : '#f4a261');
 
-    // Instrucciones dinámicas en tiempo real para guiar al jugador a completar los 30s
+    // Instrucciones dinámicas en tiempo real para guiar al jugador a completar los 10s
     if (this.textoGuiaDinamica) {
       if (this.enCalibracion) {
         const rest = Math.max(0, meta - this.tiempoBanda).toFixed(1);
@@ -849,6 +970,16 @@ export class JuegoScene extends Phaser.Scene {
     this._actualizarDiagramaAgua(V);
     this._actualizarCompuertas(ut, this.sistema.uv);
 
+    // Turbinas (giro ∝ Q_t), ciudad (P/D) y sonificación
+    const Qt = HIDRO.Kt * ut;
+    const Qv = HIDRO.Kv * this.sistema.uv;
+    this._actualizarTurbinas(dt, Qt);
+    this._actualizarCiudad(P, Pdem);
+    this.textoQt?.setText(`Q_t = ${Qt.toFixed(2)} hm³/h`);
+    this.textoQv?.setText(`Q_v = ${Qv.toFixed(2)} hm³/h`);
+    this.textoPD?.setText(`P/D = ${(P / Pdem * 100).toFixed(0)} %${Pdem > P + Math.max(2, 0.05 * Pdem) ? '  ⚠ DÉFICIT' : ''}`);
+    this.sonido.actualizar(dt, { Qt, Qv, P, D: Pdem });
+
     // Gauge H
     this.gauge.actualizar(H);
 
@@ -883,7 +1014,7 @@ export class JuegoScene extends Phaser.Scene {
     // RMSE de potencia contra la demanda de referencia min(P_dem, P_max(V)+5)
     const rmse = this.muestrasP > 0 ? Math.sqrt(this.acumSqErrP / this.muestrasP) : Infinity;
     const pctBanda = this.tiempoJuego > 0 ? 100 * this.tiempoEnBandaTotal / this.tiempoJuego : 0;
-    // Si completó los 30s de calibración continua, aprueba inmediatamente.
+    // Si completó los 10s de calibración continua, aprueba inmediatamente.
     // Si no lo logró y se agotaron los 120s (2 minutos) o hubo desborde/descebe, falla.
     const exito = this.completadoTemprano && !this.desborde && !this.descebe;
 

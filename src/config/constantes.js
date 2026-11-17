@@ -83,13 +83,13 @@ export const CAMARA = {
 export const NIVEL1 = {
   id: 1,
   nombre: 'TURNO TRANQUILO',
-  duracion_s: 120,           // 2 minutos máximos si no se alcanza los 30s
+  duracion_s: 120,           // 2 minutos máximos si no se alcanzan los 10 s calibrados
   Qrio: 0.5,                 // hm³/h constante
   P_demanda: 47.4,           // MW constante
   uv_habilitado: false,
-  tiempo_banda_minimo: 30,   // 30 s continuos calibrados para ganar inmediatamente
+  tiempo_banda_minimo: 10,   // 10 s continuos calibrados para completar el nivel
   error_P_max: 0.05,         // ±5% error de potencia permitido
-  instruccion: 'OBJETIVO (30s): Mantén el embalse en 30 ± 3 hm³ y la potencia en 47.4 MW (±5%).',
+  instruccion: 'OBJETIVO (10s): Mantén el embalse en 30 ± 3 hm³ y la potencia en 47.4 MW (±5%).',
 };
 
 // ─── NIVEL 2: TORMENTA CORDILLERANA ───────────────────────────────────────────
@@ -98,17 +98,17 @@ export const NIVEL1 = {
 export const NIVEL2 = {
   id: 2,
   nombre: 'TORMENTA CORDILLERANA',
-  duracion_s: 120,           // 2 minutos máximos si falla en calibrar 30s
+  duracion_s: 120,           // 2 minutos máximos si falla en calibrar 10 s
   Qrio: 0.5,
   tormenta_inicio_s: 15,
   tormenta_fin_s: 105,
   tormenta_amplitud: 2.5,
   P_demanda: 47.4,
   uv_habilitado: true,
-  tiempo_banda_minimo: 30,   // 30 s continuos calibrados para ganar inmediatamente
+  tiempo_banda_minimo: 10,   // 10 s continuos calibrados para completar el nivel
   error_P_max: 0.15,         // 15% error de potencia permitido
   V_final_tolerancia: 5.0,   // |V_final − 30| ≤ 5 hm³
-  instruccion: 'OBJETIVO (30s): Evita rebosamiento (≤45 hm³) usando el vertedero y mantén V en 30 ± 3 hm³ y P (±15%).',
+  instruccion: 'OBJETIVO (10s): Evita rebosamiento (≤45 hm³) usando el vertedero y mantén V en 30 ± 3 hm³ y P (±15%).',
 };
 
 /**
@@ -130,7 +130,7 @@ export function caudalNivel2(t) {
 export const NIVEL3 = {
   id: 3,
   nombre: 'HORA PICO Y DESHIELO',
-  duracion_s: 120,           // 2 minutos máximos si falla en calibrar 30s
+  duracion_s: 120,           // 2 minutos máximos si falla en calibrar 10 s
   Qrio: 0.5,                 // valor inicial (la función caudalNivel3 lo hace oscilar)
   periodo_Q_s: 40,
   demanda_escalones_MW: [45, 70, 100, 120, 75, 30],
@@ -139,9 +139,9 @@ export const NIVEL3 = {
   margen_Pmax_MW: 5,         // margen sobre P_max(V) para la demanda de referencia
   P_demanda: 45,             // demanda inicial
   uv_habilitado: true,
-  tiempo_banda_minimo: 30,   // 30 s continuos calibrados para ganar inmediatamente
+  tiempo_banda_minimo: 10,   // 10 s continuos calibrados para completar el nivel
   rmse_max_MW: 8.0,
-  instruccion: 'OBJETIVO (30s): Sigue la rampa de demanda (error ≤ 8 MW) con el embalse en 30 ± 3 hm³ sin desbordar.',
+  instruccion: 'OBJETIVO (10s): Sigue la rampa de demanda (error ≤ 8 MW) con el embalse en 30 ± 3 hm³ sin desbordar.',
 };
 
 /** Caudal oscilante del Nivel 3 [hm³/h]: 0.5 en t=0, pico 2.5 a mitad de periodo. */

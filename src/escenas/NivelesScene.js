@@ -13,17 +13,17 @@ const FUENTE = 'Courier New, monospace';
 const NIVELES = [
   {
     cfg: NIVEL1, color: COLORES.linea_P, dificultad: 'FÁCIL',
-    desc: 'Caudal y demanda constantes.\nCalibra V en 30 ± 3 hm³ y\nP ≈ 47.4 MW por 30 s para ganar.',
+    desc: 'Caudal y demanda constantes.\nCalibra V en 30 ± 3 hm³ y\nP ≈ 47.4 MW por 10 s para ganar.',
     ctrl: 'Turbinas',
   },
   {
     cfg: NIVEL2, color: COLORES.linea_V_bright, dificultad: 'MEDIO',
-    desc: 'Una tormenta eleva el caudal.\nUsa el vertedero y mantén\n30 s de calibración estable.',
+    desc: 'Una tormenta eleva el caudal.\nUsa el vertedero y mantén\n10 s de calibración estable.',
     ctrl: 'Turbinas + vertedero',
   },
   {
     cfg: NIVEL3, color: COLORES.alarma_baja, dificultad: 'DIFÍCIL',
-    desc: 'Caudal oscilante y demanda\nen rampa. Mantén 30 s de\ncalibración (error ≤ 8 MW).',
+    desc: 'Caudal oscilante y demanda\nen rampa. Mantén 10 s de\ncalibración (error ≤ 8 MW).',
     ctrl: 'Turbinas + vertedero',
   },
 ];
@@ -101,7 +101,7 @@ export class NivelesScene extends Phaser.Scene {
       fontSize: '13px', fontFamily: FUENTE, color: '#888888', align: 'center', lineSpacing: 6,
     }).setOrigin(0.5);
 
-    this.add.text(x, y + 50, `Meta: 30s calibrado (máx ${n.cfg.duracion_s}s) · ${n.ctrl}`, {
+    this.add.text(x, y + 50, `Meta: 10s calibrado (máx ${n.cfg.duracion_s}s) · ${n.ctrl}`, {
       fontSize: '10px', fontFamily: FUENTE, color: '#555555', align: 'center', wordWrap: { width: w - 20 },
     }).setOrigin(0.5);
 

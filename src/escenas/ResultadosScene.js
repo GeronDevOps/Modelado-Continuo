@@ -47,8 +47,8 @@ export class ResultadosScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.add.text(cx, 52, d.exito
-      ? '¡Nivel completado! Mantuviste el sistema calibrado durante 30 segundos continuos.'
-      : 'No alcanzaste los 30s de calibración continua dentro de los 2 minutos del turno.',
+      ? '¡Nivel completado! Mantuviste el sistema calibrado durante 10 segundos continuos.'
+      : 'No alcanzaste los 10s de calibración continua dentro de los 2 minutos del turno.',
       {
         fontSize: '12px', fontFamily: 'Courier New', color: '#666666', align: 'center',
       }
@@ -86,8 +86,8 @@ export class ResultadosScene extends Phaser.Scene {
       {
         label: 'CALIBRACIÓN CONTINUA ALCANZADA',
         valor: `${d.tiempoBandaMax.toFixed(1)} s`,
-        ok: d.tiempoBandaMax >= 30,
-        req: '≥ 30 s continuos',
+        ok: d.tiempoBandaMax >= (d.metaCalibracion ?? 10),
+        req: '≥ 10 s continuos',
       },
       {
         label: 'RANGO DE V  (sin descebe ni desborde)',
@@ -99,8 +99,8 @@ export class ResultadosScene extends Phaser.Scene {
       {
         label: 'CALIBRACIÓN CONTINUA ALCANZADA',
         valor: `${d.tiempoBandaMax.toFixed(1)} s`,
-        ok: d.tiempoBandaMax >= 30,
-        req: '≥ 30 s continuos',
+        ok: d.tiempoBandaMax >= (d.metaCalibracion ?? 10),
+        req: '≥ 10 s continuos',
       },
       {
         label: 'VOLUMEN MÁXIMO ALCANZADO',
@@ -124,8 +124,8 @@ export class ResultadosScene extends Phaser.Scene {
       {
         label: 'CALIBRACIÓN CONTINUA ALCANZADA',
         valor: `${d.tiempoBandaMax.toFixed(1)} s`,
-        ok: d.tiempoBandaMax >= 30,
-        req: '≥ 30 s continuos',
+        ok: d.tiempoBandaMax >= (d.metaCalibracion ?? 10),
+        req: '≥ 10 s continuos',
       },
       {
         label: 'ERROR MEDIO POTENCIA',
