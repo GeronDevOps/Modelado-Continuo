@@ -4,6 +4,8 @@
  * Si los assets no existen, genera placeholders procedurales.
  */
 
+import { leerModoEscalon } from '../juego/modoEscalon.js';
+
 export class BootScene extends Phaser.Scene {
   constructor() {
     super({ key: 'BootScene' });
@@ -69,8 +71,11 @@ export class BootScene extends Phaser.Scene {
     this.textoEstado?.setText('SISTEMA LISTO');
 
     // Breve pausa para el efecto de arranque, luego a menú
+    // Con ?control=escalon se entra directo al ensayo de respuesta al escalón (Nivel 1)
+    const escalon = leerModoEscalon();
     this.time.delayedCall(600, () => {
-      this.scene.start('MenuScene');
+      if (escalon) this.scene.start('JuegoScene', { nivel: 1, escalon });
+      else this.scene.start('MenuScene');
     });
   }
 }

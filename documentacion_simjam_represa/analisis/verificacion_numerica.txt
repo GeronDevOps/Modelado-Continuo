@@ -1,0 +1,46 @@
+== (a) Equilibrio ==
+dV/dt=0.00e+00 hm3/h  H=44.0 m  P=47.432 MW
+
+== (b) Error RK4 y Euler vs analítica, h=1/120 s, T=120 s ==
+ut=0 uv=0 Qrio=0.5                       RK4=4.405e-13  Euler=1.678e-05 hm3  V(120)=40.3106
+ut=1 uv=0 Qrio=0.5                       RK4=1.243e-13  Euler=2.135e-05 hm3  V(120)=16.8775
+ut=0.44 uv=0 Qrio=0.5 (equilibrio)       RK4=0.000e+00  Euler=0.000e+00 hm3  V(120)=30.0000
+ut=0.5 uv=1 Qrio=2.5                     RK4=8.171e-14  Euler=2.288e-06 hm3  V(120)=28.5940
+
+== (c) ut=0, uv=0, Qrio=0.5 sube ==
+V(0)=30 -> V(120)=40.3106 (dV=10.3106) ; pendiente inicial=0.440 hm3/h
+
+== Parámetros del modelo lineal ==
+polo (h^-1)=-0.002  tau_fisica=500 h  ganancia K=-500 hm3/unidad
+polo (s juego^-1)=-0.0004  tau_juego=2500 s  ts(2%)=4tau=10000 s juego = 2000 h
+factor tiempo: 1 s juego = 720 s reales; 120 s juego = 24 h
+
+== Factibilidad de potencia ==
+V= 10.0  Pmax(ut=1)=  68.60 MW
+V= 30.0  Pmax(ut=1)= 107.80 MW
+V= 36.2  Pmax(ut=1)= 119.95 MW
+V= 45.0  Pmax(ut=1)= 137.20 MW
+V= 50.0  Pmax(ut=1)= 147.00 MW
+V minimo para 120 MW = 36.22 hm3
+ut para 60 MW en V=30: 0.557
+Pmax absoluto (V=50) = 147.0 MW
+
+== Tormenta (Nivel 2): sin vertedero, ut=0.44 ==
+sin vertedero ut=0.44: V(120)=53.43 Vmax=53.71
+vertedero si V>40: V(120)=39.88 Vmax=40.00
+ut=1 sin vertedero: V(120)=40.31 Vmax=43.81
+
+== Sensibilidad (escalón: ut 0->1 a t=2 s con rampa 0.2/s, Qrio=0.5, V0=30, T=120 s) ==
+Nominal: V(120)=17.7353  dV=-12.2647  Mp=0%  ts(2%) no alcanzado (4tau=10000 s)
+k_perd  -20%: V(120)=17.9633  dV=-12.0367  S(dV)=+0.093  S(V)=-0.064
+k_perd  +20%: V(120)=17.5097  dV=-12.4903  S(dV)=+0.092  S(V)=-0.064
+K_t     -20%: V(120)=22.2504  dV=-7.7496  S(dV)=+1.841  S(V)=-1.273
+K_t     +20%: V(120)=13.2203  dV=-16.7797  S(dV)=+1.841  S(V)=-1.273
+Q_rio   -20%: V(120)=15.3920  dV=-14.6080  S(dV)=-0.955  S(V)=+0.661
+Q_rio   +20%: V(120)=20.0786  dV=-9.9214  S(dV)=-0.955  S(V)=+0.661
+
+== Sistemas de prueba de la guía 5.9 a) (h = 1/120 s, escalón unitario, T = 20 s) ==
+1.er orden K=2 tau=0.5     rk4   error máx = 4.797e-10
+1.er orden K=2 tau=0.5     euler error máx = 6.174e-03
+2.º orden zeta=0.3 wn=4    rk4   error máx = 1.327e-08
+2.º orden zeta=0.3 wn=4    euler error máx = 2.190e-02

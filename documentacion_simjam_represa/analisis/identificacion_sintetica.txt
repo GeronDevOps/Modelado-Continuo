@@ -1,0 +1,9 @@
+b = 0.19973 ± 0.00006   (esperado 0.2)  error rel = 0.14%
+a = 0.000399 ± 0.000000  (esperado 0.0004)  error rel = 0.27%
+  -> en horas simuladas: b_h = 0.9986 (esp. 1.0), k_perd = 0.00199 1/h (esp. 0.002)
+  -> tau identificado = 2507 s de juego = 501 h  (esperado 2500 s = 500 h)
+  -> T_exc/tau = 0.048  (la guía pide >= 4 para un 1.er orden; aquí es << 1: ver informe)
+H = 20.010 + 0.7997*V  (esperado 20 + 0.8 V)
+P = 2.4500 * H * Q_t     (esperado 2.45)
+identificacion: RMSE = 0.0168 hm3   R2 = 0.9997   (cumple R2>=0.90)
+validacion: RMSE = 0.0235 hm3   R2 = 1.0000   (cumple R2>=0.90)

@@ -1,0 +1,101 @@
+{
+  "MODELO": {
+    "A": -0.002,
+    "B": [
+      -1,
+      -2
+    ],
+    "E": 1,
+    "C": 1,
+    "D": [
+      0,
+      0
+    ]
+  },
+  "HIDRO": {
+    "H_base": 20,
+    "H_slope": 0.8,
+    "eta": 2.45,
+    "Kt": 1,
+    "Kv": 2
+  },
+  "TIEMPO": {
+    "horas_por_segundo_juego": 0.2,
+    "factor_aceleracion": 720,
+    "tau_juego_s": 2500
+  },
+  "EQUILIBRIO": {
+    "V0": 30,
+    "Qrio0": 0.5,
+    "uv0": 0,
+    "ut0": 0.44
+  },
+  "LIMITES": {
+    "V_min": 5,
+    "V_max": 50,
+    "V_alarma_alta": 45,
+    "V_alarma_baja": 10,
+    "V_objetivo": 30,
+    "V_banda": 3,
+    "ut_min": 0,
+    "ut_max": 1,
+    "uv_min": 0,
+    "uv_max": 1
+  },
+  "INTEGRADOR": {
+    "h": 0.008333333333333333
+  },
+  "ACTUADORES": {
+    "ut_velocidad_max": 0.2,
+    "uv_velocidad_max": 0.5
+  },
+  "NIVEL1": {
+    "id": 1,
+    "nombre": "TURNO TRANQUILO",
+    "duracion_s": 120,
+    "Qrio": 0.5,
+    "P_demanda": 47.4,
+    "uv_habilitado": false,
+    "tiempo_banda_minimo": 10,
+    "error_P_max": 0.05,
+    "instruccion": "OBJETIVO (10s): Mantén el embalse en 30 ± 3 hm³ y la potencia en 47.4 MW (±5%)."
+  },
+  "NIVEL2": {
+    "id": 2,
+    "nombre": "TORMENTA CORDILLERANA",
+    "duracion_s": 120,
+    "Qrio": 0.5,
+    "tormenta_inicio_s": 15,
+    "tormenta_fin_s": 105,
+    "tormenta_amplitud": 2.5,
+    "P_demanda": 47.4,
+    "uv_habilitado": true,
+    "tiempo_banda_minimo": 10,
+    "error_P_max": 0.15,
+    "V_final_tolerancia": 5,
+    "instruccion": "OBJETIVO (10s): Evita rebosamiento (≤45 hm³) usando el vertedero y mantén V en 30 ± 3 hm³ y P (±15%)."
+  },
+  "NIVEL3": {
+    "id": 3,
+    "nombre": "HORA PICO Y DESHIELO",
+    "duracion_s": 120,
+    "Qrio": 0.5,
+    "periodo_Q_s": 40,
+    "demanda_escalones_MW": [
+      45,
+      70,
+      100,
+      120,
+      75,
+      30
+    ],
+    "escalon_s": 20,
+    "rampa_s": 4,
+    "margen_Pmax_MW": 5,
+    "P_demanda": 45,
+    "uv_habilitado": true,
+    "tiempo_banda_minimo": 10,
+    "rmse_max_MW": 8,
+    "instruccion": "OBJETIVO (10s): Sigue la rampa de demanda (error ≤ 8 MW) con el embalse en 30 ± 3 hm³ sin desbordar."
+  }
+}

@@ -28,6 +28,7 @@ import {
 import { demandaEfectiva } from '../modelo/SistemaContinuo.js';
 import { EfectosClima } from '../ui/Efectos.js';
 import { SonidoPlanta } from '../ui/Sonido.js';
+import { RegistroEscalon } from '../juego/modoEscalon.js';
 
 export class JuegoScene extends Phaser.Scene {
   constructor() {
@@ -44,6 +45,14 @@ export class JuegoScene extends Phaser.Scene {
     this.usarCamara = !!camara && camara.estado === 'listo' && calibracionValida(calib);
     this.camara = this.usarCamara ? camara : null;
     this.calib = this.usarCamara ? calib : null;
+
+    // Modo de prueba ?control=escalon: la consigna de u_t la fija un escalón, no el jugador
+    this.escalon = data?.escalon ? new RegistroEscalon(data.escalon) : null;
+    if (this.escalon) {
+      this.usarCamara = false;
+      this.camara = null;
+      this.calib = null;
+    }
   }
 
   create() {
@@ -102,6 +111,15 @@ export class JuegoScene extends Phaser.Scene {
     this._configurarTeclado();
 
     // ─── ACTUALIZACIÓN PERIÓDICA (10 Hz para gráficas) ────────────────────────
+    if (this.escalon) {
+      const c = this.escalon.cfg;
+      this.textoEscalon = this.add.text(640, 700,
+        `MODO ESCALÓN: u_t ${c.u0} → ${c.u1} en t = ${c.t0} s · ×${c.velocidad}`, {
+          fontSize: '12px', fontFamily: 'Courier New, monospace', color: '#f4d35e',
+          backgroundColor: '#111111', padding: { x: 6, y: 3 },
+        }).setOrigin(0.5).setDepth(50);
+    }
+
     this.timerGrafica = this.time.addEvent({
       delay: 100,   // 100 ms = 10 veces por segundo
       loop: true,
@@ -723,7 +741,9 @@ export class JuegoScene extends Phaser.Scene {
     if (this.pausado && !this.gameOver) this.sonido?.actualizar(0, { Qt: 0, Qv: 0, P: 0, D: 0 });
     if (this.pausado || this.gameOver) return;
 
-    const dt = delta / 1000;  // Convertir ms a s
+    // En el modo escalón se entrega más tiempo de juego por cuadro; el modelo se sigue
+    // integrando con el mismo paso fijo h dentro de integrarDt.
+    const dt = (delta / 1000) * (this.escalon ? this.escalon.cfg.velocidad : 1);
 
     // ─── PERTURBACIONES: caudal del río y demanda según el nivel ─────────────
     this.sistema.Qrio = caudalPorNivel(this.nivelId, this.tiempoJuego);
@@ -763,6 +783,11 @@ export class JuegoScene extends Phaser.Scene {
     // ─── FIN DEL NIVEL (10s de calibración exitosa o 120s de límite / fallo) ──
     this.efectos.actualizar(dt, this.intensidadTormenta, this.sistema.uv, { x: 380, y: 545 });
 
+    if (this.escalon) {
+      this._actualizarEscalon();
+      return;
+    }
+
     if (this.tiempoBanda >= this.metaCalibracion) {
       this.completadoTemprano = true;
       this._finalizarNivel();
@@ -781,7 +806,11 @@ export class JuegoScene extends Phaser.Scene {
     const velT = ACTUADORES.ut_velocidad_max;
     const velV = ACTUADORES.uv_velocidad_max;
 
-    if (this.usarCamara) {
+    if (this.escalon) {
+      // ─── ENSAYO DE ESCALÓN: la consigna no depende del jugador ────────────────
+      this.utObjetivo = this.escalon.consigna(this.tiempoJuego);
+      this.uvObjetivo = 0;
+    } else if (this.usarCamara) {
       // ─── CÁMARA: muñeca derecha (landmark 0) → u_t; puño izquierdo → u_v ────
       this.camara.actualizar(time);
       if (this.camara.manoDerechaVisible && this.camara.yMuneca !== null) {
@@ -808,6 +837,23 @@ export class JuegoScene extends Phaser.Scene {
     this.sistema.ut = saturar(this.sistema.ut + dUt, 0, 1);
     const dUv = saturar(this.uvObjetivo - this.sistema.uv, -velV * dt, velV * dt);
     this.sistema.uv = saturar(this.sistema.uv + dUv, 0, 1);
+  }
+
+  /** Registra la muestra del ensayo de escalón y descarga el CSV al llegar a T. */
+  _actualizarEscalon() {
+    const fin = this.escalon.registrar(this.tiempoJuego, this.utObjetivo, this.sistema);
+    const c = this.escalon.cfg;
+    this.textoEscalon.setText(
+      `MODO ESCALÓN ×${c.velocidad}: t = ${this.tiempoJuego.toFixed(0)} / ${c.T} s · ` +
+      `V = ${this.sistema.V.toFixed(3)} hm³ · ${this.escalon.muestras} muestras`
+    );
+    if (fin) {
+      this.gameOver = true;
+      this.escalon.descargar();
+      this.textoEscalon.setText(
+        `ENSAYO TERMINADO: ${c.archivo}.csv descargado (${this.escalon.muestras} muestras). Recarga para repetir.`
+      );
+    }
   }
 
   /** Demanda eléctrica cruda en el instante actual [MW]. */

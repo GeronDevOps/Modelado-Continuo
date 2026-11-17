@@ -1,0 +1,3 @@
+línea base: valor final = 20.0340  tr = 5418.658 s  Mp = 0.09 %
+analisis/headless_escalon_15fps.csv: valor final 0.00 %, tr 0.00 %, Mp 0.00 puntos -> pasa
+analisis/headless_escalon_144fps.csv: valor final 0.00 %, tr 0.00 %, Mp 0.00 puntos -> pasa

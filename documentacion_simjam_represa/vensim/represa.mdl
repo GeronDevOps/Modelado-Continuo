@@ -1,0 +1,120 @@
+{UTF-8}
+Embalse_Volumen= INTEG(
+	Entrada_Rio-Salida_Turbinas-Salida_Vertedero-Perdida_Filtracion,
+		30)
+	~	hm3
+	~	Volumen almacenado en el embalse (nivel). V0 = 30 hm3
+	|
+
+Entrada_Rio= 0.5
+	~	hm3/Hour
+	~	Caudal del rio Q_rio. Para tormenta: 0.5+STEP(2,30)-STEP(2,90) en horas simuladas
+	|
+
+Salida_Turbinas= K_t*Apertura_Turbina
+	~	hm3/Hour
+	~	Caudal turbinado Q_t = K_t*u_t
+	|
+
+Salida_Vertedero= K_v*Apertura_Vertedero
+	~	hm3/Hour
+	~	Caudal vertido Q_v = K_v*u_v
+	|
+
+Perdida_Filtracion= k_perdida*Embalse_Volumen
+	~	hm3/Hour
+	~	Perdida por filtracion k_perd*V
+	|
+
+Cabeza_Hidraulica= 20+0.8*Embalse_Volumen
+	~	m
+	~	Cabeza hidraulica H = 20 + 0.8 V
+	|
+
+Potencia_Generada= 2.45*Cabeza_Hidraulica*Salida_Turbinas
+	~	MW
+	~	Potencia P = 2.45 H Q_t
+	|
+
+Apertura_Turbina= 0.44+STEP(-0.1,2)
+	~	Dmnl
+	~	u_t: equilibrio 0.44 con escalon de -0.1 a las 2 h (ajusta al de tu CSV)
+	|
+
+Apertura_Vertedero= 0
+	~	Dmnl
+	~	u_v: 0 en el escalon de referencia
+	|
+
+K_t= 1
+	~	hm3/Hour/Dmnl
+	~	Ganancia de turbinas
+	|
+
+K_v= 2
+	~	hm3/Hour/Dmnl
+	~	Ganancia del vertedero
+	|
+
+k_perdida= 0.002
+	~	1/Hour
+	~	Coeficiente de filtracion
+	|
+
+********************************************************
+	.Control
+********************************************************~
+		Simulation Control Parameters
+	|
+
+FINAL TIME  = 20
+	~	Hour
+	~	The final time for the simulation.
+	|
+
+INITIAL TIME  = 0
+	~	Hour
+	~	The initial time for the simulation.
+	|
+
+SAVEPER  = 
+        TIME STEP
+	~	Hour [0,?]
+	~	The frequency with which output is stored.
+	|
+
+TIME STEP  = 0.01
+	~	Hour [0,?]
+	~	The time step for the simulation.
+	|
+
+\\\---/// Sketch information - do not modify anything except names
+V300  Do not put anything below this section - it will be ignored
+*Vista 1
+$192-192-192,0,Times New Roman|12||0-0-0|0-0-0|0-0-255|-1--1--1|-1--1--1|96,96,100,0
+10,1,Embalse_Volumen,400,260,50,26,3,3,0,0,0,0,0,0
+10,2,Entrada_Rio,180,260,60,18,8,3,0,0,0,0,0,0
+10,3,Salida_Turbinas,400,100,60,18,8,3,0,0,0,0,0,0
+10,4,Salida_Vertedero,620,100,60,18,8,3,0,0,0,0,0,0
+10,5,Perdida_Filtracion,620,260,60,18,8,3,0,0,0,0,0,0
+10,6,Apertura_Turbina,260,20,60,18,8,3,0,0,0,0,0,0
+10,7,K_t,400,20,60,18,8,3,0,0,0,0,0,0
+10,8,Apertura_Vertedero,620,20,60,18,8,3,0,0,0,0,0,0
+10,9,K_v,760,20,60,18,8,3,0,0,0,0,0,0
+10,10,k_perdida,760,260,60,18,8,3,0,0,0,0,0,0
+10,11,Cabeza_Hidraulica,400,420,60,18,8,3,0,0,0,0,0,0
+10,12,Potencia_Generada,620,420,60,18,8,3,0,0,0,0,0,0
+1,13,2,1,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+1,14,3,1,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+1,15,4,1,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+1,16,5,1,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+1,17,1,5,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+1,18,6,3,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+1,19,7,3,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+1,20,8,4,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+1,21,9,4,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+1,22,10,5,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+1,23,1,11,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+1,24,11,12,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+1,25,3,12,0,0,0,22,0,192,0,-1--1--1,,1|(0,0)|
+///---\\\
